@@ -129,11 +129,11 @@ func getJSON(url string) ([]Fullnode, error) {
 	var fullnode []Fullnode
 	resp, err := http.Get(url)
 	if err != nil {
-		return fullnode, fmt.Errorf("cannot fetch URL %q: %v", url, err)
+		return []Fullnode{}, fmt.Errorf("cannot fetch URL %q: %v", url, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return fullnode, fmt.Errorf("unexpected http GET status: %s", resp.Status)
+		return []Fullnode{}, fmt.Errorf("unexpected http GET status: %s", resp.Status)
 	}
 	// We could check the resulting content type
 	// here if desired.
