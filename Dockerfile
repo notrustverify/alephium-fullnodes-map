@@ -20,7 +20,7 @@ RUN go mod download
 COPY *.go ./
 
 # Build
-RUN CGO_ENABLED=1 GOOS=linux go build -o app
+RUN CGO_ENABLED=1 GOOS=linux go build -o build
 # Run the tests in the container
 #FROM build-stage AS run-test-stage
 #RUN go test -v ./...
@@ -28,5 +28,5 @@ RUN CGO_ENABLED=1 GOOS=linux go build -o app
 # Deploy the application binary into a lean image
 FROM alpine:edge
 WORKDIR /
-COPY --from=build-stage /app/app /app
+COPY --from=build-stage /app/build /app
 CMD ["/app"]
