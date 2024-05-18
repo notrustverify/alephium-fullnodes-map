@@ -2,15 +2,18 @@
 
 # Dockerfile according https://docs.docker.com/language/golang/build-images/
 
-FROM golang:1.22-alpine AS build-stage
-
+FROM golang:1.22-bookworm AS build-stage
 # Set destination for COPY
 WORKDIR /app
 
-RUN apk add --no-cache gcc g++ sqlite
+RUN apt-get update \
+ && DEBIAN_FRONTEND=noninteractive \
+    apt-get install --no-install-recommends --assume-yes \
+      build-essential \
+      libsqlite3-dev
 # Download Go modules
 COPY go.mod go.sum ./
-RUN go mod download 
+RUN go mod download
 
 # Copy the source code. Note the slash at the end, as explained in
 # https://docs.docker.com/engine/reference/builder/#copy
