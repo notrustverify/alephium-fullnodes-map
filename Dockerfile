@@ -7,7 +7,7 @@ FROM golang:1.22-alpine AS build-stage
 # Set destination for COPY
 WORKDIR /app
 
-RUN apk add --no-cache gcc g++
+RUN apk add --no-cache gcc g++ sqlite
 # Download Go modules
 COPY go.mod go.sum ./
 RUN go mod download 
