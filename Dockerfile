@@ -20,13 +20,13 @@ RUN go mod download
 COPY *.go ./
 
 # Build
-RUN CGO_ENABLED=1 GOOS=linux go build -o build
+RUN CGO_ENABLED=1 GOOS=linux go build -o out
 # Run the tests in the container
 #FROM build-stage AS run-test-stage
 #RUN go test -v ./...
 
 # Deploy the application binary into a lean image
-FROM alpine:edge
+FROM gcr.io/distroless/base-debian12
 WORKDIR /
-COPY --from=build-stage /app/build /build
-CMD ["/build"]
+COPY --from=build-stage /app/out /out
+CMD ["/out"]
