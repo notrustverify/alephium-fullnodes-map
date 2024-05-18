@@ -28,5 +28,5 @@ RUN CGO_ENABLED=1 GOOS=linux go build -o build
 # Deploy the application binary into a lean image
 FROM alpine:edge
 WORKDIR /
-COPY --from=build-stage /app/build /app
-CMD ["/app"]
+COPY --from=build-stage /app/build /build
+CMD ["/build"]
