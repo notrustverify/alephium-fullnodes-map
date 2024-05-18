@@ -1,0 +1,114 @@
+{
+    "schemes": [
+        "https"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "Find connected fullnodes peers and get their approximate location",
+        "title": "Fullnodes Aggregator API",
+        "contact": {},
+        "version": "1.0"
+    },
+    "host": "map.alephium.notrustverify.ch",
+    "basePath": "/",
+    "paths": {
+        "/fullnodes": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "fullnodes"
+                ],
+                "summary": "Get detected fullnodes peers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/main.FullnodeApi"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/versions": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "fullnodes"
+                ],
+                "summary": "Get version run by fullnodes peers",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/main.ClientVersionCount"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "main.ClientVersionCount": {
+            "type": "object",
+            "properties": {
+                "client_version": {
+                    "type": "string"
+                },
+                "count": {
+                    "type": "integer"
+                }
+            }
+        },
+        "main.FullnodeApi": {
+            "type": "object",
+            "properties": {
+                "city": {
+                    "type": "string"
+                },
+                "clientVersion": {
+                    "type": "string"
+                },
+                "country": {
+                    "type": "string"
+                },
+                "hostname": {
+                    "type": "string"
+                },
+                "ip": {
+                    "type": "string"
+                },
+                "isSynced": {
+                    "type": "boolean"
+                },
+                "location": {
+                    "type": "string"
+                },
+                "org": {
+                    "type": "string"
+                },
+                "postal": {
+                    "type": "string"
+                },
+                "region": {
+                    "type": "string"
+                },
+                "timezone": {
+                    "type": "string"
+                },
+                "updatedAt": {
+                    "type": "string"
+                }
+            }
+        }
+    }
+}
