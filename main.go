@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/go-co-op/gocron"
@@ -54,6 +55,8 @@ type Fullnode struct {
 var IPINFO_TOKEN string
 var db *gorm.DB
 
+const API_PEERS_ENDPOINT = "infos/inter-clique-peer-info"
+
 func main() {
 
 	err := godotenv.Load(".env")
@@ -63,6 +66,11 @@ func main() {
 	dbPath := os.Getenv("DB_PATH")
 	IPINFO_TOKEN = os.Getenv("IPINFO_TOKEN")
 	cronUpdate := os.Getenv("CRON_INTERVAL")
+	fullnodesList := strings.Split(os.Getenv("FULLNODE_LIST"), ",")
+
+	if len(fullnodesList) <= 0 {
+		log.Fatalf("Fullnodes list to query is empty")
+	}
 
 	conn, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	if err != nil {
@@ -72,15 +80,16 @@ func main() {
 
 	// Migrate the schema
 	db.AutoMigrate(&FullnodeDb{})
-	fmt.Printf("Starting, running every %s", cronUpdate)
+	fmt.Printf("Starting, running every %s\n", cronUpdate)
+	fmt.Printf("Querying %s\n", fullnodesList)
 	s := gocron.NewScheduler(time.UTC)
-	s.Every(cronUpdate).Do(updateFullnodeList)
+	s.Every(cronUpdate).Do(updateFullnodeList, fullnodesList)
 	s.StartBlocking()
 
 }
 
-func updateFullnodeList() {
-	fullnodes, err := getFullnodes()
+func updateFullnodeList(fullnodesList []string) {
+	fullnodes, err := getFullnodes(fullnodesList)
 	if err != nil {
 		fmt.Printf("Error get fullnodes, %s", err)
 	}
@@ -133,13 +142,20 @@ func getJSON(url string) ([]Fullnode, error) {
 }
 
 // query endpoint infos/inter-clique-peer-info
-func getFullnodes() ([]FullnodeDb, error) {
-	url := "https://fullnode.alephium.notrustverify.ch/infos/inter-clique-peer-info"
-	fullnode, err := getJSON(url)
+func getFullnodes(nodesToQuery []string) ([]FullnodeDb, error) {
 
-	if err != nil {
-		return nil, fmt.Errorf("cannot fetch URL %q: %v", url, err)
+	var fullnode []Fullnode
+	for _, node := range nodesToQuery {
+		url := fmt.Sprintf("%s/%s", node, API_PEERS_ENDPOINT)
+
+		fullnodeListResult, err := getJSON(url)
+		if err != nil {
+			fmt.Printf("Error in getting fullnodes peers, %s", err)
+		}
+
+		fullnode = append(fullnodeListResult, fullnodeListResult...)
 	}
+
 	//fmt.Printf("%v+", fullnode)
 
 	var fullnodeDb []FullnodeDb
