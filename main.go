@@ -90,6 +90,7 @@ func main() {
 }
 
 func updateFullnodeList(fullnodesList []string) {
+	fmt.Println("Update fullnodes")
 	fullnodes, err := getFullnodes(fullnodesList)
 	if err != nil {
 		fmt.Printf("Error get fullnodes, %s", err)
@@ -121,6 +122,7 @@ func updateFullnodeList(fullnodesList []string) {
 			})
 		}
 	}
+
 }
 
 func getJSON(url string) ([]Fullnode, error) {
@@ -162,7 +164,7 @@ func getFullnodes(nodesToQuery []string) ([]FullnodeDb, error) {
 	var fullnodeDb []FullnodeDb
 
 	for _, item := range fullnode {
-		fullnodeDb = append(fullnodeDb, FullnodeDb{
+		fullnodeDb = appendIfNotExists(fullnodeDb, FullnodeDb{
 			CliqueId:          item.CliqueId,
 			BrokerId:          item.BrokerId,
 			GroupNumPerBroker: item.GroupNumPerBroker,
@@ -203,4 +205,22 @@ func getIpInfo(fullnodes *[]FullnodeDb) ipinfo.BatchCore {
 	}
 
 	return batchResult
+}
+
+// Function to check if the struct with specific properties exists in the slice
+func contains(slice []FullnodeDb, ip string, port uint) bool {
+	for _, item := range slice {
+		if item.Ip == ip && item.Port == port {
+			return true
+		}
+	}
+	return false
+}
+
+// Function to append a struct to the slice if it doesn't already exist
+func appendIfNotExists(slice []FullnodeDb, newItem FullnodeDb) []FullnodeDb {
+	if !contains(slice, newItem.Ip, newItem.Port) {
+		slice = append(slice, newItem)
+	}
+	return slice
 }
