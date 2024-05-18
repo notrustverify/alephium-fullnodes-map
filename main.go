@@ -104,10 +104,10 @@ func updateFullnodeList(fullnodesList []string) {
 	}
 
 	var emptyIpFullnodes []FullnodeDb
-	db.Where("location = ?", "").Find(&emptyIpFullnodes)
+	resultEmtpy := db.Where("location = ?", "").Find(&emptyIpFullnodes)
 
 	//`only update existing fullnode
-	if len(emptyIpFullnodes) > 0 {
+	if resultEmtpy.RowsAffected > 0 {
 		ipInfo := getIpInfo(&fullnodes)
 		for k, v := range ipInfo {
 			db.Model(&FullnodeDb{}).Where("ip = ?", k).Updates(FullnodeDb{

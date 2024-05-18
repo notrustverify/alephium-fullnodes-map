@@ -92,11 +92,11 @@ func getFullnodes(c *gin.Context) {
 
 	var fullnodes []FullnodeDbApi
 	timeNow := time.Now()
-	lastTimeUpdatedParam := c.DefaultQuery("lastUpdate", "4")
+	lastTimeUpdatedParam := c.DefaultQuery("lastUpdate", "6")
 	lastTimeUpdated, err := strconv.Atoi(lastTimeUpdatedParam)
 	if err != nil {
 		fmt.Printf("Error with parameters, %s", err)
-		lastTimeUpdated = 4
+		lastTimeUpdated = 6
 	}
 
 	result := dbHandler.Model(&FullnodeDb{}).Where("updated_at > ?", timeNow.Add(time.Hour*time.Duration(-lastTimeUpdated))).Find(&fullnodes)
@@ -104,7 +104,7 @@ func getFullnodes(c *gin.Context) {
 	if result.RowsAffected > 0 && result.Error == nil {
 		c.JSON(http.StatusOK, fullnodes)
 	} else {
-		fmt.Printf("Error getting fullnodes: %s", result.Error)
+		fmt.Printf("Error getting fullnodes: %s\n", result.Error)
 		c.JSON(http.StatusOK, make([]string, 0))
 	}
 }
@@ -117,7 +117,7 @@ func getVersions(c *gin.Context) {
 	if result.RowsAffected > 0 && result.Error == nil {
 		c.JSON(http.StatusOK, countVersion)
 	} else {
-		fmt.Printf("Error getting fullnodes: %s", result.Error)
+		fmt.Printf("Error getting count: %s\n", result.Error)
 		c.JSON(http.StatusOK, make([]string, 0))
 	}
 }
