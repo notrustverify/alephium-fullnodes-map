@@ -69,12 +69,13 @@ func main() {
 	fullnodesList := strings.Split(os.Getenv("FULLNODE_LIST"), ",")
 
 	if len(fullnodesList) <= 0 {
-		log.Fatalf("Fullnodes list to query is empty")
+		log.Fatalf("Fullnodes list to query is empty\n")
+		os.Exit(1)
 	}
 
 	conn, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	if err != nil {
-		panic("failed to connect database")
+		panic("failed to connect database\n")
 	}
 	db = conn
 

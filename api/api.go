@@ -112,7 +112,7 @@ func getFullnodes(c *gin.Context) {
 func getVersions(c *gin.Context) {
 
 	var countVersion []ClientVersionCount
-	result := dbHandler.Model(&FullnodeDb{}).Select("client_version, COUNT(*) as count").Group("client_version").Scan(&countVersion)
+	result := dbHandler.Model(&FullnodeDb{}).Distinct("ip", "port").Select("client_version, COUNT(*) as count").Group("client_version").Order("count").Scan(&countVersion)
 
 	if result.RowsAffected > 0 && result.Error == nil {
 		c.JSON(http.StatusOK, countVersion)
