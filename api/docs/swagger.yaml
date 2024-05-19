@@ -34,6 +34,13 @@ definitions:
       updatedAt:
         type: string
     type: object
+  main.SyncCount:
+    properties:
+      count:
+        type: integer
+      isSynced:
+        type: boolean
+    type: object
 host: map.alephium.notrustverify.ch
 info:
   contact: {}
@@ -43,6 +50,11 @@ info:
 paths:
   /fullnodes:
     get:
+      parameters:
+      - description: Last update
+        in: query
+        name: lastUpdate
+        type: string
       produces:
       - application/json
       responses:
@@ -53,6 +65,20 @@ paths:
               $ref: '#/definitions/main.FullnodeApi'
             type: array
       summary: Get detected fullnodes peers
+      tags:
+      - fullnodes
+  /syncstatus:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/main.SyncCount'
+            type: array
+      summary: Get number of fullnodes synced and not synced
       tags:
       - fullnodes
   /versions:

@@ -24,6 +24,14 @@ const docTemplate = `{
                     "fullnodes"
                 ],
                 "summary": "Get detected fullnodes peers",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Last update",
+                        "name": "lastUpdate",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -31,6 +39,28 @@ const docTemplate = `{
                             "type": "array",
                             "items": {
                                 "$ref": "#/definitions/main.FullnodeApi"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/syncstatus": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "fullnodes"
+                ],
+                "summary": "Get number of fullnodes synced and not synced",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/main.SyncCount"
                             }
                         }
                     }
@@ -110,6 +140,17 @@ const docTemplate = `{
                 },
                 "updatedAt": {
                     "type": "string"
+                }
+            }
+        },
+        "main.SyncCount": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "isSynced": {
+                    "type": "boolean"
                 }
             }
         }

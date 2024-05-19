@@ -57,6 +57,11 @@ type ClientVersionCount struct {
 	Count         int    `json:"count"`
 }
 
+type SyncCount struct {
+	IsSynced bool `json:"isSynced"`
+	Count    int  `json:"count"`
+}
+
 var dbHandler *gorm.DB
 
 // @title Fullnodes Aggregator API
@@ -93,6 +98,7 @@ func main() {
 	router.Use(cors.New(corsConfig))
 	router.GET("/fullnodes", getFullnodes)
 	router.GET("/versions", getVersions)
+	router.GET("/syncstatus", getSyncedStatus)
 
 	// redict to index.html
 	router.GET("/docs", func(c *gin.Context) {
@@ -110,6 +116,7 @@ func main() {
 // @Produce json
 // @Success 200 {array} FullnodeApi
 // @Router /fullnodes [get]
+// @Param lastUpdate query string false "Last update"
 func getFullnodes(c *gin.Context) {
 
 	var fullnodes []FullnodeApi
@@ -144,6 +151,25 @@ func getVersions(c *gin.Context) {
 
 	if result.RowsAffected > 0 && result.Error == nil {
 		c.JSON(http.StatusOK, countVersion)
+	} else {
+		fmt.Printf("Error getting count: %s\n", result.Error)
+		c.JSON(http.StatusOK, make([]string, 0))
+	}
+}
+
+// SyncStatus godoc
+// @Summary Get number of fullnodes synced and not synced
+// @Tags fullnodes
+// @Produce json
+// @Success 200 {array} SyncCount
+// @Router /syncstatus [get]
+func getSyncedStatus(c *gin.Context) {
+
+	var countSync []SyncCount
+	result := dbHandler.Model(&FullnodeDb{}).Distinct("ip", "port").Select("is_synced, COUNT(*) as count").Group("is_synced").Order("count").Scan(&countSync)
+
+	if result.RowsAffected > 0 && result.Error == nil {
+		c.JSON(http.StatusOK, countSync)
 	} else {
 		fmt.Printf("Error getting count: %s\n", result.Error)
 		c.JSON(http.StatusOK, make([]string, 0))
