@@ -93,6 +93,11 @@ func main() {
 	router.Use(cors.New(corsConfig))
 	router.GET("/fullnodes", getFullnodes)
 	router.GET("/versions", getVersions)
+
+	// redict to index.html
+	router.GET("/docs", func(c *gin.Context) {
+		c.Redirect(http.StatusMovedPermanently, "/docs/index.html")
+	})
 	router.GET("/docs/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	router.Run("0.0.0.0:8080")
