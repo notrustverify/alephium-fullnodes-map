@@ -61,7 +61,7 @@ func main() {
 
 	err := godotenv.Load(".env")
 	if err != nil {
-		fmt.Printf("Error load env, %s", err)
+		fmt.Printf("Error load env, %s\n", err)
 	}
 	dbPath := os.Getenv("DB_PATH")
 	IPINFO_TOKEN = os.Getenv("IPINFO_TOKEN")
