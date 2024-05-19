@@ -53,7 +53,7 @@ type FullnodeApi struct {
 }
 
 type ClientVersionCount struct {
-	ClientVersion string `json:"client_version"`
+	ClientVersion string `json:"clientVersion"`
 	Count         int    `json:"count"`
 }
 
