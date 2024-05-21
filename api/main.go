@@ -183,14 +183,14 @@ func getSyncedStatus(c *gin.Context) {
 }
 
 // GetNumNodes godoc
-// @Summary Return number of nodes connected
+// @Summary Return number of nodes connected historicallyWil
 // @Tags fullnodes
 // @Produce json
 // @Success 200 {array} NumNodesDb
 // @Router /historic [get]
 func getNumNodes(c *gin.Context) {
 	var countSync []NumNodesDb
-	result := dbHandler.Model(&NumNodesDb{}).Limit(100).Find(&countSync)
+	result := dbHandler.Model(&NumNodesDb{}).Order("updated_at DESC").Limit(100).Find(&countSync)
 
 	if result.RowsAffected > 0 && result.Error == nil {
 		c.JSON(http.StatusOK, countSync)
