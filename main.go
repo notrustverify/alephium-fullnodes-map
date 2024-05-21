@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"strings"
@@ -37,9 +38,45 @@ type FullnodeDb struct {
 	Timezone          string
 }
 
+type IP struct {
+	Query string
+}
+
 type Address struct {
 	Addr string
 	Port uint
+}
+
+type SelfNode struct {
+	BuildInfo struct {
+		ReleaseVersion string `json:"releaseVersion"`
+		Commit         string `json:"commit"`
+	} `json:"buildInfo"`
+	Upnp            bool        `json:"upnp"`
+	ExternalAddress interface{} `json:"externalAddress"`
+}
+
+type SelfClique struct {
+	CliqueID string `json:"cliqueId"`
+	Nodes    []struct {
+		Address      string `json:"address"`
+		RestPort     int    `json:"restPort"`
+		WsPort       int    `json:"wsPort"`
+		MinerAPIPort int    `json:"minerApiPort"`
+	} `json:"nodes"`
+	SelfReady bool `json:"selfReady"`
+	Synced    bool `json:"synced"`
+}
+
+type SelfVersion struct {
+	Version string `json:"version"`
+}
+
+type SelfChainParams struct {
+	NetworkID             int `json:"networkId"`
+	NumZerosAtLeastInHash int `json:"numZerosAtLeastInHash"`
+	GroupNumPerBroker     int `json:"groupNumPerBroker"`
+	Groups                int `json:"groups"`
 }
 
 type Fullnode struct {
@@ -56,6 +93,9 @@ var IPINFO_TOKEN string
 var db *gorm.DB
 
 const API_PEERS_ENDPOINT = "infos/inter-clique-peer-info"
+const API_SELF_VERSION_ENDPOINT = "infos/node"
+const API_SELF_CHAIN_PARAM_ENDPOINT = "infos/chain-params"
+const API_SELF_CLIQUE_ENDPOINT = "infos/self-clique"
 
 func main() {
 
@@ -125,15 +165,69 @@ func updateFullnodeList(fullnodesList []string) {
 
 }
 
-func getJSON(url string) ([]Fullnode, error) {
-	var fullnode []Fullnode
+func getSelfInfo(basePath string) Fullnode {
+	selfVersionUrl := fmt.Sprintf("%s/%s", basePath, API_SELF_VERSION_ENDPOINT)
+	selfChainParamsUrl := fmt.Sprintf("%s/%s", basePath, API_SELF_CHAIN_PARAM_ENDPOINT)
+	selfCliqueUrl := fmt.Sprintf("%s/%s", basePath, API_SELF_CLIQUE_ENDPOINT)
+
+	var selfFullnode Fullnode
+	resultVersion, err := getJSONNotArray[SelfVersion](selfVersionUrl)
+	if err != nil {
+		fmt.Printf("error with self version: %s\n", err)
+	}
+
+	resultChainParam, err := getJSONNotArray[SelfChainParams](selfChainParamsUrl)
+	if err != nil {
+		fmt.Printf("error with chain param: %s\n", err)
+	}
+
+	resultSelfClique, err := getJSONNotArray[SelfClique](selfCliqueUrl)
+	if err != nil {
+		fmt.Printf("error with self clique: %s\n", err)
+	}
+
+	hostname := strings.Split(basePath, "://")[1]
+	publicIp, err := getPublicIp(hostname)
+	if err != nil {
+		fmt.Printf("Cannot get public ip, %s\n", publicIp)
+	}
+
+	selfFullnode.ClientVersion = resultVersion.Version
+	selfFullnode.GroupNumPerBroker = uint(resultChainParam.GroupNumPerBroker)
+	selfFullnode.CliqueId = resultSelfClique.CliqueID
+	selfFullnode.IsSynced = resultSelfClique.Synced
+	selfFullnode.Address.Addr = publicIp
+	selfFullnode.Address.Port = 9973
+
+	return selfFullnode
+}
+
+func getPublicIp(host string) (string, error) {
+	ips, err := net.LookupIP(host)
+	if err != nil {
+		return "", err
+	}
+
+	for _, ip := range ips {
+		if ipv4 := ip.To4(); ipv4 != nil {
+			return ipv4.To4().String(), nil
+		}
+	}
+
+	return ips[0].String(), err
+
+}
+
+func getJSON[T any](url string) ([]T, error) {
+	var fullnode []T
+
 	resp, err := http.Get(url)
 	if err != nil {
-		return []Fullnode{}, fmt.Errorf("cannot fetch URL %q: %v", url, err)
+		return []T{}, fmt.Errorf("cannot fetch URL %q: %v", url, err)
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return []Fullnode{}, fmt.Errorf("unexpected http GET status: %s", resp.Status)
+		return []T{}, fmt.Errorf("unexpected http GET status: %s", resp.Status)
 	}
 	// We could check the resulting content type
 	// here if desired.
@@ -141,6 +235,28 @@ func getJSON(url string) ([]Fullnode, error) {
 	if err != nil {
 		return fullnode, fmt.Errorf("cannot decode JSON: %v", err)
 	}
+
+	return fullnode, nil
+}
+
+func getJSONNotArray[T any](url string) (T, error) {
+	var fullnode T
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return fullnode, fmt.Errorf("cannot fetch URL %q: %v", url, err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fullnode, fmt.Errorf("unexpected http GET status: %s", resp.Status)
+	}
+	// We could check the resulting content type
+	// here if desired.
+	err = json.NewDecoder(resp.Body).Decode(&fullnode)
+	if err != nil {
+		return fullnode, fmt.Errorf("cannot decode JSON: %v", err)
+	}
+
 	return fullnode, nil
 }
 
@@ -148,18 +264,26 @@ func getJSON(url string) ([]Fullnode, error) {
 func getFullnodes(nodesToQuery []string) ([]FullnodeDb, error) {
 
 	var fullnode []Fullnode
+
 	for _, node := range nodesToQuery {
+		selfNode := getSelfInfo(node)
+
+		fullnode = append(fullnode, selfNode)
+
+	}
+
+	for _, node := range nodesToQuery {
+
 		url := fmt.Sprintf("%s/%s", node, API_PEERS_ENDPOINT)
 
-		fullnodeListResult, err := getJSON(url)
+		fullnodeListResult, err := getJSON[Fullnode](url)
 		if err != nil {
 			fmt.Printf("Error in getting fullnodes peers, %s", err)
 		}
 
-		fullnode = append(fullnodeListResult, fullnodeListResult...)
-	}
+		fullnode = append(fullnode, fullnodeListResult...)
 
-	//fmt.Printf("%v+", fullnode)
+	}
 
 	var fullnodeDb []FullnodeDb
 
@@ -194,7 +318,7 @@ func getIpInfo(fullnodes *[]FullnodeDb) ipinfo.BatchCore {
 	// batchResult will contain all the batch lookup data
 	batchResult, err := client.GetIPStrInfoBatch(ips,
 		ipinfo.BatchReqOpts{
-			BatchSize:       2,
+			BatchSize:       30,
 			TimeoutPerBatch: 0,
 			TimeoutTotal:    5,
 		},

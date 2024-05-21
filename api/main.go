@@ -20,23 +20,22 @@ import (
 
 type FullnodeDb struct {
 	gorm.Model
-	CliqueId          string `json:"cliqueid"`
-	BrokerId          uint   `json:"brokerid"`
-	GroupNumPerBroker uint   `json:"groupNumPerBroker"`
-	Ip                string `json:"ip"`
-	Port              uint   `json:"port"`
-	ClientVersion     string `json:"clientVersion"`
-	IsSynced          bool   `json:"isSynced"`
-	Hostname          string `json:"hostname"`
-	City              string `json:"city"`
-	Region            string `json:"region"`
-	Country           string `json:"country"`
-	Location          string `json:"location"`
-	Org               string `json:"org"`
-	Postal            string `json:"postal"`
-	Timezone          string `json:"timezone"`
+	CliqueId          string `gorm:"unique"`
+	BrokerId          uint
+	GroupNumPerBroker uint
+	Ip                string
+	Port              uint
+	ClientVersion     string
+	IsSynced          bool
+	Hostname          string
+	City              string
+	Region            string
+	Country           string
+	Location          string
+	Org               string
+	Postal            string
+	Timezone          string
 }
-
 type FullnodeApi struct {
 	Ip            string     `json:"ip"`
 	ClientVersion string     `json:"clientVersion"`
