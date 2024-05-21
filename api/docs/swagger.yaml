@@ -2,7 +2,7 @@ basePath: /
 definitions:
   main.ClientVersionCount:
     properties:
-      client_version:
+      clientVersion:
         type: string
       count:
         type: integer
@@ -32,6 +32,13 @@ definitions:
       timezone:
         type: string
       updatedAt:
+        type: string
+    type: object
+  main.NumNodesDb:
+    properties:
+      count:
+        type: integer
+      createdAt:
         type: string
     type: object
   main.SyncCount:
@@ -65,6 +72,20 @@ paths:
               $ref: '#/definitions/main.FullnodeApi'
             type: array
       summary: Get detected fullnodes peers
+      tags:
+      - fullnodes
+  /historic:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/main.NumNodesDb'
+            type: array
+      summary: Return number of nodes connected
       tags:
       - fullnodes
   /syncstatus:

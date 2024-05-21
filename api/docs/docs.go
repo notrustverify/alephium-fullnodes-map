@@ -45,6 +45,28 @@ const docTemplate = `{
                 }
             }
         },
+        "/historic": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "fullnodes"
+                ],
+                "summary": "Return number of nodes connected",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/main.NumNodesDb"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/syncstatus": {
             "get": {
                 "produces": [
@@ -94,7 +116,7 @@ const docTemplate = `{
         "main.ClientVersionCount": {
             "type": "object",
             "properties": {
-                "client_version": {
+                "clientVersion": {
                     "type": "string"
                 },
                 "count": {
@@ -139,6 +161,17 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "updatedAt": {
+                    "type": "string"
+                }
+            }
+        },
+        "main.NumNodesDb": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer"
+                },
+                "createdAt": {
                     "type": "string"
                 }
             }

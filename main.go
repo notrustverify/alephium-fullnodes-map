@@ -38,6 +38,11 @@ type FullnodeDb struct {
 	Timezone          string
 }
 
+type NumNodesDb struct {
+	gorm.Model
+	Count int
+}
+
 type IP struct {
 	Query string
 }
@@ -120,7 +125,7 @@ func main() {
 	db = conn
 
 	// Migrate the schema
-	db.AutoMigrate(&FullnodeDb{})
+	db.AutoMigrate(&FullnodeDb{}, &NumNodesDb{})
 	fmt.Printf("Starting, running every %s\n", cronUpdate)
 	fmt.Printf("Querying %s\n", fullnodesList)
 	s := gocron.NewScheduler(time.UTC)
@@ -135,6 +140,9 @@ func updateFullnodeList(fullnodesList []string) {
 	if err != nil {
 		fmt.Printf("Error get fullnodes, %s", err)
 	}
+
+	numNodes := NumNodesDb{Count: len(fullnodes)}
+	db.Create(&numNodes)
 
 	result := db.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "clique_id"}},
 		DoUpdates: clause.Assignments(map[string]interface{}{"updated_at": time.Now()})}).Create(&fullnodes)
