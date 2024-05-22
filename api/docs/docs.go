@@ -53,7 +53,15 @@ const docTemplate = `{
                 "tags": [
                     "fullnodes"
                 ],
-                "summary": "Return number of nodes connected",
+                "summary": "Return number of nodes connected historicallyWil",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Limit number of historic data, default 100",
+                        "name": "limt",
+                        "in": "query"
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",

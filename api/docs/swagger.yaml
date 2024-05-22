@@ -76,6 +76,11 @@ paths:
       - fullnodes
   /historic:
     get:
+      parameters:
+      - description: Limit number of historic data, default 100
+        in: query
+        name: limt
+        type: string
       produces:
       - application/json
       responses:
@@ -85,7 +90,7 @@ paths:
             items:
               $ref: '#/definitions/main.NumNodesDb'
             type: array
-      summary: Return number of nodes connected
+      summary: Return number of nodes connected historicallyWil
       tags:
       - fullnodes
   /syncstatus:

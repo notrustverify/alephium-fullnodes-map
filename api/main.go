@@ -183,7 +183,7 @@ func getSyncedStatus(c *gin.Context) {
 }
 
 // GetNumNodes godoc
-// @Summary Return number of nodes connected historicallyWil
+// @Summary Return number of nodes connected historically
 // @Tags fullnodes
 // @Produce json
 // @Success 200 {array} NumNodesDb
