@@ -106,7 +106,7 @@ func main() {
 
 	err := godotenv.Load(".env")
 	if err != nil {
-		fmt.Printf("Error load env, %s\n", err)
+		log.Printf("Error load env, %s\n", err)
 	}
 	dbPath := os.Getenv("DB_PATH")
 	IPINFO_TOKEN = os.Getenv("IPINFO_TOKEN")
@@ -126,8 +126,8 @@ func main() {
 
 	// Migrate the schema
 	db.AutoMigrate(&FullnodeDb{}, &NumNodesDb{})
-	fmt.Printf("Starting, running every %s\n", cronUpdate)
-	fmt.Printf("Querying %s\n", fullnodesList)
+	log.Printf("Starting, running every %s\n", cronUpdate)
+	log.Printf("Querying %s\n", fullnodesList)
 	s := gocron.NewScheduler(time.UTC)
 	s.Every(cronUpdate).Do(updateFullnodeList, fullnodesList)
 	s.StartBlocking()
@@ -135,15 +135,17 @@ func main() {
 }
 
 func updateFullnodeList(fullnodesList []string) {
-	fmt.Println("Update fullnodes")
+	log.Println("Update fullnodes")
 	fullnodes, err := getFullnodes(fullnodesList)
 	if err != nil {
-		fmt.Printf("Error get fullnodes, %s", err)
+		log.Printf("Error get fullnodes, %s", err)
 	}
 
+	// update the actual number of nodes find
 	numNodes := NumNodesDb{Count: len(fullnodes)}
 	db.Create(&numNodes)
 
+	// update existing nodes based on their clique id
 	result := db.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "clique_id"}},
 		DoUpdates: clause.Assignments(map[string]interface{}{"updated_at": time.Now()})}).Create(&fullnodes)
 
@@ -173,6 +175,7 @@ func updateFullnodeList(fullnodesList []string) {
 
 }
 
+// retrieve info from queried node
 func getSelfInfo(basePath string) Fullnode {
 	selfVersionUrl := fmt.Sprintf("%s/%s", basePath, API_SELF_VERSION_ENDPOINT)
 	selfChainParamsUrl := fmt.Sprintf("%s/%s", basePath, API_SELF_CHAIN_PARAM_ENDPOINT)
@@ -181,23 +184,23 @@ func getSelfInfo(basePath string) Fullnode {
 	var selfFullnode Fullnode
 	resultVersion, err := getJSONNotArray[SelfVersion](selfVersionUrl)
 	if err != nil {
-		fmt.Printf("error with self version: %s\n", err)
+		log.Printf("error with self version: %s\n", err)
 	}
 
 	resultChainParam, err := getJSONNotArray[SelfChainParams](selfChainParamsUrl)
 	if err != nil {
-		fmt.Printf("error with chain param: %s\n", err)
+		log.Printf("error with chain param: %s\n", err)
 	}
 
 	resultSelfClique, err := getJSONNotArray[SelfClique](selfCliqueUrl)
 	if err != nil {
-		fmt.Printf("error with self clique: %s\n", err)
+		log.Printf("error with self clique: %s\n", err)
 	}
 
 	hostname := strings.Split(basePath, "://")[1]
 	publicIp, err := getPublicIp(hostname)
 	if err != nil {
-		fmt.Printf("Cannot get public ip, %s\n", publicIp)
+		log.Printf("Cannot get public ip, %s\n", publicIp)
 	}
 
 	selfFullnode.ClientVersion = resultVersion.Version
@@ -286,7 +289,7 @@ func getFullnodes(nodesToQuery []string) ([]FullnodeDb, error) {
 
 		fullnodeListResult, err := getJSON[Fullnode](url)
 		if err != nil {
-			fmt.Printf("Error in getting fullnodes peers, %s", err)
+			log.Printf("Error in getting fullnodes peers, %s", err)
 		}
 
 		fullnode = append(fullnode, fullnodeListResult...)
@@ -332,7 +335,7 @@ func getIpInfo(fullnodes *[]FullnodeDb) ipinfo.BatchCore {
 		},
 	)
 	if err != nil {
-		fmt.Printf("Error getting ipinfo, %s", err)
+		log.Printf("Error getting ipinfo, %s", err)
 		return ipinfo.BatchCore{}
 	}
 

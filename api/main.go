@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -130,7 +131,7 @@ func getFullnodes(c *gin.Context) {
 	lastTimeUpdatedParam := c.DefaultQuery("lastUpdate", "6")
 	lastTimeUpdated, err := strconv.Atoi(lastTimeUpdatedParam)
 	if err != nil {
-		fmt.Printf("Error with parameters, %s", err)
+		log.Printf("Error with parameters, %s", err)
 		lastTimeUpdated = 6
 	}
 
@@ -139,7 +140,7 @@ func getFullnodes(c *gin.Context) {
 	if result.RowsAffected > 0 && result.Error == nil {
 		c.JSON(http.StatusOK, fullnodes)
 	} else {
-		fmt.Printf("Error getting fullnodes: %s\n", result.Error)
+		log.Printf("Error getting fullnodes: %s\n", result.Error)
 		c.JSON(http.StatusOK, make([]string, 0))
 	}
 }
@@ -158,7 +159,7 @@ func getVersions(c *gin.Context) {
 	if result.RowsAffected > 0 && result.Error == nil {
 		c.JSON(http.StatusOK, countVersion)
 	} else {
-		fmt.Printf("Error getting count: %s\n", result.Error)
+		log.Printf("Error getting count: %s\n", result.Error)
 		c.JSON(http.StatusOK, make([]string, 0))
 	}
 }
@@ -177,7 +178,7 @@ func getSyncedStatus(c *gin.Context) {
 	if result.RowsAffected > 0 && result.Error == nil {
 		c.JSON(http.StatusOK, countSync)
 	} else {
-		fmt.Printf("Error getting count: %s\n", result.Error)
+		log.Printf("Error getting count: %s\n", result.Error)
 		c.JSON(http.StatusOK, make([]string, 0))
 	}
 }
@@ -195,7 +196,7 @@ func getNumNodes(c *gin.Context) {
 	limit := c.DefaultQuery("limit", "100")
 	limitToInt, err := strconv.Atoi(limit)
 	if err != nil {
-		fmt.Printf("Error with parameters, %s", err)
+		log.Printf("Error with parameters, %s", err)
 		limitToInt = 100
 	}
 
@@ -204,7 +205,7 @@ func getNumNodes(c *gin.Context) {
 	if result.RowsAffected > 0 && result.Error == nil {
 		c.JSON(http.StatusOK, countSync)
 	} else {
-		fmt.Printf("Error getting count: %s\n", result.Error)
+		log.Printf("Error getting count: %s\n", result.Error)
 		c.JSON(http.StatusOK, make([]string, 0))
 	}
 }
