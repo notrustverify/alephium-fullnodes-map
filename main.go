@@ -176,7 +176,7 @@ func updateFullnodeList(fullnodesList []string) {
 }
 
 // retrieve info from queried node
-func getSelfInfo(basePath string) Fullnode {
+func getSelfInfo(basePath string) (Fullnode, error) {
 	selfVersionUrl := fmt.Sprintf("%s/%s", basePath, API_SELF_VERSION_ENDPOINT)
 	selfChainParamsUrl := fmt.Sprintf("%s/%s", basePath, API_SELF_CHAIN_PARAM_ENDPOINT)
 	selfCliqueUrl := fmt.Sprintf("%s/%s", basePath, API_SELF_CLIQUE_ENDPOINT)
@@ -184,23 +184,23 @@ func getSelfInfo(basePath string) Fullnode {
 	var selfFullnode Fullnode
 	resultVersion, err := getJSONNotArray[SelfVersion](selfVersionUrl)
 	if err != nil {
-		log.Printf("error with self version: %s\n", err)
+		return Fullnode{}, fmt.Errorf("error with self version: %s", err)
 	}
 
 	resultChainParam, err := getJSONNotArray[SelfChainParams](selfChainParamsUrl)
 	if err != nil {
-		log.Printf("error with chain param: %s\n", err)
+		return Fullnode{}, fmt.Errorf("error with chain param: %s", err)
 	}
 
 	resultSelfClique, err := getJSONNotArray[SelfClique](selfCliqueUrl)
 	if err != nil {
-		log.Printf("error with self clique: %s\n", err)
+		return Fullnode{}, fmt.Errorf("error with self clique: %s", err)
 	}
 
 	hostname := strings.Split(basePath, "://")[1]
 	publicIp, err := getPublicIp(hostname)
 	if err != nil {
-		log.Printf("Cannot get public ip, %s\n", publicIp)
+		return Fullnode{}, fmt.Errorf("Cannot get public ip, %s", publicIp)
 	}
 
 	selfFullnode.ClientVersion = resultVersion.Version
@@ -210,7 +210,7 @@ func getSelfInfo(basePath string) Fullnode {
 	selfFullnode.Address.Addr = publicIp
 	selfFullnode.Address.Port = 9973
 
-	return selfFullnode
+	return selfFullnode, nil
 }
 
 func getPublicIp(host string) (string, error) {
@@ -275,15 +275,23 @@ func getJSONNotArray[T any](url string) (T, error) {
 func getFullnodes(nodesToQuery []string) ([]FullnodeDb, error) {
 
 	var fullnode []Fullnode
+	var checkNodesToQuery []string // only use fullnodes that are reachable
 
 	for _, node := range nodesToQuery {
-		selfNode := getSelfInfo(node)
+		selfNode, err := getSelfInfo(node)
+
+		// if issue when querying fullnode dont include it later
+		if err != nil {
+			log.Printf("Error with node %s, err: %s", node, err)
+			continue
+		}
 
 		fullnode = append(fullnode, selfNode)
+		checkNodesToQuery = append(checkNodesToQuery, node)
 
 	}
 
-	for _, node := range nodesToQuery {
+	for _, node := range checkNodesToQuery {
 
 		url := fmt.Sprintf("%s/%s", node, API_PEERS_ENDPOINT)
 
