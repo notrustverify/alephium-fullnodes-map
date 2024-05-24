@@ -189,15 +189,15 @@ func getSyncedStatus(c *gin.Context) {
 // @Produce json
 // @Success 200 {array} NumNodesDb
 // @Router /historic [get]
-// @Param limt query string false "Limit number of historic data, default 100"
+// @Param limt query string false "Limit number of historic data, default 50"
 func getNumNodes(c *gin.Context) {
 	var countSync []NumNodesDb
 
-	limit := c.DefaultQuery("limit", "100")
+	limit := c.DefaultQuery("limit", "50")
 	limitToInt, err := strconv.Atoi(limit)
 	if err != nil {
 		log.Printf("Error with parameters, %s", err)
-		limitToInt = 100
+		limitToInt = 50
 	}
 
 	result := dbHandler.Model(&NumNodesDb{}).Order("updated_at DESC").Limit(limitToInt).Find(&countSync)
