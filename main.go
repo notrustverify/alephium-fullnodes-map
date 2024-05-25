@@ -98,7 +98,7 @@ var IPINFO_TOKEN string
 var db *gorm.DB
 
 const API_PEERS_ENDPOINT = "infos/inter-clique-peer-info"
-const API_SELF_VERSION_ENDPOINT = "infos/node"
+const API_SELF_VERSION_ENDPOINT = "infos/version"
 const API_SELF_CHAIN_PARAM_ENDPOINT = "infos/chain-params"
 const API_SELF_CLIQUE_ENDPOINT = "infos/self-clique"
 
@@ -146,8 +146,10 @@ func updateFullnodeList(fullnodesList []string) {
 	db.Create(&numNodes)
 
 	// update existing nodes based on their clique id
-	result := db.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "clique_id"}},
-		DoUpdates: clause.Assignments(map[string]interface{}{"updated_at": time.Now()})}).Create(&fullnodes)
+	result := db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "clique_id"}},
+		DoUpdates: clause.AssignmentColumns([]string{"client_version", "is_synced", "group_num_per_broker", "port", "broker_id", "updated_at"}),
+	}).Create(&fullnodes)
 
 	if result.Error != nil {
 		log.Fatalf("Error insert fullnodes, %s", result.Error)
@@ -200,10 +202,10 @@ func getSelfInfo(basePath string) (Fullnode, error) {
 	hostname := strings.Split(basePath, "://")[1]
 	publicIp, err := getPublicIp(hostname)
 	if err != nil {
-		return Fullnode{}, fmt.Errorf("Cannot get public ip, %s", publicIp)
+		return Fullnode{}, fmt.Errorf("cannot get public ip, %s", publicIp)
 	}
 
-	selfFullnode.ClientVersion = resultVersion.Version
+	selfFullnode.ClientVersion = fmt.Sprintf("/%s/", resultVersion.Version)
 	selfFullnode.GroupNumPerBroker = uint(resultChainParam.GroupNumPerBroker)
 	selfFullnode.CliqueId = resultSelfClique.CliqueID
 	selfFullnode.IsSynced = resultSelfClique.Synced
