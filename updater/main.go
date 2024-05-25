@@ -14,7 +14,7 @@ import (
 	"github.com/ipinfo/go/ipinfo/cache"
 	"github.com/ipinfo/go/v2/ipinfo"
 	"github.com/joho/godotenv"
-	models "github.com/notrustverify/alephium-fullnodes-map"
+	mapmodels "github.com/notrustverify/alephium-fullnodes-map"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -107,7 +107,7 @@ func main() {
 	db = conn
 
 	// Migrate the schema
-	db.AutoMigrate(&models.FullnodeDb{}, &NumNodesDb{})
+	db.AutoMigrate(&mapmodels.FullnodeDb{}, &NumNodesDb{})
 	log.Printf("Starting, running every %s\n", cronUpdate)
 	log.Printf("Querying %s\n", fullnodesList)
 	s := gocron.NewScheduler(time.UTC)
@@ -137,14 +137,14 @@ func updateFullnodeList(fullnodesList []string) {
 		log.Fatalf("Error insert fullnodes, %s", result.Error)
 	}
 
-	var emptyIpFullnodes []models.FullnodeDb
+	var emptyIpFullnodes []mapmodels.FullnodeDb
 	resultEmtpy := db.Where("location = ?", "").Find(&emptyIpFullnodes)
 
 	//`only update existing fullnode
 	if resultEmtpy.RowsAffected > 0 {
 		ipInfo := getIpInfo(&fullnodes)
 		for k, v := range ipInfo {
-			db.Model(&models.FullnodeDb{}).Where("ip = ?", k).Updates(models.FullnodeDb{
+			db.Model(&mapmodels.FullnodeDb{}).Where("ip = ?", k).Updates(mapmodels.FullnodeDb{
 				Hostname: v.Hostname,
 				City:     v.City,
 				Region:   v.Region,
@@ -256,7 +256,7 @@ func getJSONNotArray[T any](url string) (T, error) {
 }
 
 // query endpoint infos/inter-clique-peer-info
-func getFullnodes(nodesToQuery []string) ([]models.FullnodeDb, error) {
+func getFullnodes(nodesToQuery []string) ([]mapmodels.FullnodeDb, error) {
 
 	var fullnode []Fullnode
 	var checkNodesToQuery []string // only use fullnodes that are reachable
@@ -288,10 +288,10 @@ func getFullnodes(nodesToQuery []string) ([]models.FullnodeDb, error) {
 
 	}
 
-	var fullnodeDb []models.FullnodeDb
+	var fullnodeDb []mapmodels.FullnodeDb
 
 	for _, item := range fullnode {
-		fullnodeDb = appendIfNotExists(fullnodeDb, models.FullnodeDb{
+		fullnodeDb = appendIfNotExists(fullnodeDb, mapmodels.FullnodeDb{
 			CliqueId:          item.CliqueId,
 			BrokerId:          item.BrokerId,
 			GroupNumPerBroker: item.GroupNumPerBroker,
@@ -306,7 +306,7 @@ func getFullnodes(nodesToQuery []string) ([]models.FullnodeDb, error) {
 
 }
 
-func getIpInfo(fullnodes *[]models.FullnodeDb) ipinfo.BatchCore {
+func getIpInfo(fullnodes *[]mapmodels.FullnodeDb) ipinfo.BatchCore {
 	client := ipinfo.NewClient(
 		nil,
 		ipinfo.NewCache(cache.NewInMemory().WithExpiration(5*time.Minute)),
@@ -335,7 +335,7 @@ func getIpInfo(fullnodes *[]models.FullnodeDb) ipinfo.BatchCore {
 }
 
 // Function to check if the struct with specific properties exists in the slice
-func contains(slice []models.FullnodeDb, ip string, port uint) bool {
+func contains(slice []mapmodels.FullnodeDb, ip string, port uint) bool {
 	for _, item := range slice {
 		if item.Ip == ip && item.Port == port {
 			return true
@@ -345,7 +345,7 @@ func contains(slice []models.FullnodeDb, ip string, port uint) bool {
 }
 
 // Function to append a struct to the slice if it doesn't already exist
-func appendIfNotExists(slice []models.FullnodeDb, newItem models.FullnodeDb) []models.FullnodeDb {
+func appendIfNotExists(slice []mapmodels.FullnodeDb, newItem mapmodels.FullnodeDb) []mapmodels.FullnodeDb {
 	if !contains(slice, newItem.Ip, newItem.Port) {
 		slice = append(slice, newItem)
 	}

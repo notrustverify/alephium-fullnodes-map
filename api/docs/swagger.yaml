@@ -15,10 +15,6 @@ definitions:
         type: string
       country:
         type: string
-      hostname:
-        type: string
-      ip:
-        type: string
       isSynced:
         type: boolean
       location:
@@ -77,7 +73,7 @@ paths:
   /historic:
     get:
       parameters:
-      - description: Limit number of historic data, default 100
+      - description: Limit number of historic data, default 50
         in: query
         name: limt
         type: string
@@ -90,7 +86,7 @@ paths:
             items:
               $ref: '#/definitions/main.NumNodesDb'
             type: array
-      summary: Return number of nodes connected historicallyWil
+      summary: Return number of nodes connected historically
       tags:
       - fullnodes
   /syncstatus:

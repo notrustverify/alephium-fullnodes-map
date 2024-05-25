@@ -53,11 +53,11 @@ const docTemplate = `{
                 "tags": [
                     "fullnodes"
                 ],
-                "summary": "Return number of nodes connected historicallyWil",
+                "summary": "Return number of nodes connected historically",
                 "parameters": [
                     {
                         "type": "string",
-                        "description": "Limit number of historic data, default 100",
+                        "description": "Limit number of historic data, default 50",
                         "name": "limt",
                         "in": "query"
                     }
@@ -142,12 +142,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "country": {
-                    "type": "string"
-                },
-                "hostname": {
-                    "type": "string"
-                },
-                "ip": {
                     "type": "string"
                 },
                 "isSynced": {
