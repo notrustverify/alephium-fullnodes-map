@@ -13,30 +13,12 @@ import (
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	models "github.com/notrustverify/alephium-fullnodes-map"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
-
-type FullnodeDb struct {
-	gorm.Model
-	CliqueId          string `gorm:"unique"`
-	BrokerId          uint
-	GroupNumPerBroker uint
-	Ip                string
-	Port              uint
-	ClientVersion     string
-	IsSynced          bool
-	Hostname          string
-	City              string
-	Region            string
-	Country           string
-	Location          string
-	Org               string
-	Postal            string
-	Timezone          string
-}
 
 type NumNodesDb struct {
 	Count     int        `json:"count"`
@@ -133,7 +115,7 @@ func getFullnodes(c *gin.Context) {
 		lastTimeUpdated = 6
 	}
 
-	result := dbHandler.Model(&FullnodeDb{}).Where("updated_at > ?", timeNow.Add(time.Hour*time.Duration(-lastTimeUpdated))).Find(&fullnodes)
+	result := dbHandler.Model(&models.FullnodeDb{}).Where("updated_at > ?", timeNow.Add(time.Hour*time.Duration(-lastTimeUpdated))).Find(&fullnodes)
 
 	if result.RowsAffected > 0 && result.Error == nil {
 		c.JSON(http.StatusOK, fullnodes)
@@ -152,7 +134,7 @@ func getFullnodes(c *gin.Context) {
 func getVersions(c *gin.Context) {
 
 	var countVersion []ClientVersionCount
-	result := dbHandler.Model(&FullnodeDb{}).Distinct("ip", "port").Select("client_version, COUNT(*) as count").Group("client_version").Order("count").Scan(&countVersion)
+	result := dbHandler.Model(&models.FullnodeDb{}).Distinct("ip", "port").Select("client_version, COUNT(*) as count").Group("client_version").Order("count").Scan(&countVersion)
 
 	if result.RowsAffected > 0 && result.Error == nil {
 		c.JSON(http.StatusOK, countVersion)
@@ -171,7 +153,7 @@ func getVersions(c *gin.Context) {
 func getSyncedStatus(c *gin.Context) {
 
 	var countSync []SyncCount
-	result := dbHandler.Model(&FullnodeDb{}).Distinct("ip", "port").Select("is_synced, COUNT(*) as count").Group("is_synced").Order("count").Scan(&countSync)
+	result := dbHandler.Model(&models.FullnodeDb{}).Distinct("ip", "port").Select("is_synced, COUNT(*) as count").Group("is_synced").Order("count").Scan(&countSync)
 
 	if result.RowsAffected > 0 && result.Error == nil {
 		c.JSON(http.StatusOK, countSync)
