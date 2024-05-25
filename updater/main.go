@@ -198,7 +198,19 @@ func getSelfInfo(basePath string) (Fullnode, error) {
 }
 
 func getPublicIp(host string) (string, error) {
-	ips, err := net.LookupIP(host)
+	var hostClean = host
+
+	apiSplitKey := strings.Split(host, "@")
+	if len(apiSplitKey) > 1 {
+		hostClean = apiSplitKey[1]
+	}
+
+	portSplit := strings.Split(hostClean, ":")
+	if len(portSplit) > 1 {
+		hostClean = portSplit[0]
+	}
+
+	ips, err := net.LookupIP(hostClean)
 	if err != nil {
 		return "", err
 	}
@@ -216,7 +228,19 @@ func getPublicIp(host string) (string, error) {
 func getJSON[T any](url string) ([]T, error) {
 	var fullnode []T
 
-	resp, err := http.Get(url)
+	var req *http.Request
+
+	apiSplitKey := strings.Split(url, "@")
+	if len(apiSplitKey) > 1 {
+		req, _ = http.NewRequest("GET", apiSplitKey[1], nil)
+		req.Header.Set("X-API-KEY", apiSplitKey[0])
+	} else {
+		req, _ = http.NewRequest("GET", url, nil)
+
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		return []T{}, fmt.Errorf("cannot fetch URL %q: %v", url, err)
 	}
@@ -237,7 +261,19 @@ func getJSON[T any](url string) ([]T, error) {
 func getJSONNotArray[T any](url string) (T, error) {
 	var fullnode T
 
-	resp, err := http.Get(url)
+	var req *http.Request
+
+	apiSplitKey := strings.Split(url, "@")
+	if len(apiSplitKey) > 1 {
+		req, _ = http.NewRequest("GET", apiSplitKey[1], nil)
+		req.Header.Set("X-API-KEY", apiSplitKey[0])
+	} else {
+		req, _ = http.NewRequest("GET", url, nil)
+
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		return fullnode, fmt.Errorf("cannot fetch URL %q: %v", url, err)
 	}
@@ -253,6 +289,21 @@ func getJSONNotArray[T any](url string) (T, error) {
 	}
 
 	return fullnode, nil
+}
+
+func returnUri(uri string) *http.Request {
+	var req *http.Request
+
+	apiSplitKey := strings.Split(uri, "@")
+	if len(apiSplitKey) > 1 {
+		req, _ = http.NewRequest("GET", apiSplitKey[1], nil)
+		req.Header.Set("X-API-KEY", apiSplitKey[0])
+	} else {
+		req, _ = http.NewRequest("GET", uri, nil)
+
+	}
+
+	return req
 }
 
 // query endpoint infos/inter-clique-peer-info
