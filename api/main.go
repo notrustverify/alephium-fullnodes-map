@@ -46,7 +46,6 @@ type NumNodesDb struct {
 type FullnodeApi struct {
 	ClientVersion string     `json:"clientVersion"`
 	IsSynced      bool       `json:"isSynced"`
-	Hostname      string     `json:"hostname"`
 	City          string     `json:"city"`
 	Region        string     `json:"region"`
 	Country       string     `json:"country"`
