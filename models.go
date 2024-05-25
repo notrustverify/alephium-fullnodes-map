@@ -1,4 +1,4 @@
-package models
+package mapmodels
 
 import "gorm.io/gorm"
 
