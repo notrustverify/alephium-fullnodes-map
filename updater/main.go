@@ -84,6 +84,8 @@ const API_SELF_VERSION_ENDPOINT = "infos/version"
 const API_SELF_CHAIN_PARAM_ENDPOINT = "infos/chain-params"
 const API_SELF_CLIQUE_ENDPOINT = "infos/self-clique"
 
+const ONE_WEEK_HOUR = 168
+
 func main() {
 
 	err := godotenv.Load(".env")
@@ -138,24 +140,28 @@ func updateFullnodeList(fullnodesList []string) {
 	}
 
 	var emptyIpFullnodes []mapmodels.FullnodeDb
-	resultEmtpy := db.Where("location = ?", "").Find(&emptyIpFullnodes)
+	resultEmtpy := db.Where("location = ? | ip_updated_at < ? | ip_updated_at is NULL", "", time.Now().Add(-(time.Hour * ONE_WEEK_HOUR))).Find(&emptyIpFullnodes)
 
 	//`only update existing fullnode
 	if resultEmtpy.RowsAffected > 0 {
-		ipInfo := getIpInfo(&fullnodes)
+		ipInfo := getIpInfo(&emptyIpFullnodes)
+
 		for k, v := range ipInfo {
 			db.Model(&mapmodels.FullnodeDb{}).Where("ip = ?", k).Updates(mapmodels.FullnodeDb{
-				Hostname: v.Hostname,
-				City:     v.City,
-				Region:   v.Region,
-				Country:  v.Country,
-				Location: v.Location,
-				Org:      v.Org,
-				Postal:   v.Postal,
-				Timezone: v.Timezone,
+				Hostname:    v.Hostname,
+				City:        v.City,
+				Region:      v.Region,
+				Country:     v.Country,
+				Location:    v.Location,
+				Org:         v.Org,
+				Postal:      v.Postal,
+				Timezone:    v.Timezone,
+				IpUpdatedAt: time.Now(),
 			})
 		}
 	}
+
+	log.Printf("Update done")
 
 }
 
