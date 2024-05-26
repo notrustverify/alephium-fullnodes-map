@@ -23,5 +23,5 @@ type FullnodeDb struct {
 	Org               string
 	Postal            string
 	Timezone          string
-	ipUpdatedAt       *time.Time
+	IpUpdatedAt       *time.Time
 }
