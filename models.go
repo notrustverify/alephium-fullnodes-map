@@ -1,6 +1,10 @@
 package mapmodels
 
-import "gorm.io/gorm"
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
 
 type FullnodeDb struct {
 	gorm.Model
@@ -19,4 +23,5 @@ type FullnodeDb struct {
 	Org               string
 	Postal            string
 	Timezone          string
+	ipUpdate          *time.Time
 }
