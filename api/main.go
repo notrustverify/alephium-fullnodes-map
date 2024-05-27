@@ -108,11 +108,11 @@ func getFullnodes(c *gin.Context) {
 
 	var fullnodes []FullnodeApi
 	timeNow := time.Now()
-	lastTimeUpdatedParam := c.DefaultQuery("lastUpdate", "6")
+	lastTimeUpdatedParam := c.DefaultQuery("lastUpdate", "3")
 	lastTimeUpdated, err := strconv.Atoi(lastTimeUpdatedParam)
 	if err != nil {
 		log.Printf("Error with parameters, %s", err)
-		lastTimeUpdated = 6
+		lastTimeUpdated = 3
 	}
 
 	result := dbHandler.Model(&mapmodels.FullnodeDb{}).Where("updated_at > ?", timeNow.Add(time.Hour*time.Duration(-lastTimeUpdated))).Find(&fullnodes)
