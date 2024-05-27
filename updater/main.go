@@ -193,7 +193,7 @@ func getSelfInfo(basePath string) (Fullnode, error) {
 		return Fullnode{}, fmt.Errorf("cannot get public ip, %s", publicIp)
 	}
 
-	selfFullnode.ClientVersion = fmt.Sprintf("/%s/", resultVersion.Version)
+	selfFullnode.ClientVersion = fmt.Sprintf("scala-alephium/%s/Linux", resultVersion.Version)
 	selfFullnode.GroupNumPerBroker = uint(resultChainParam.GroupNumPerBroker)
 	selfFullnode.CliqueId = resultSelfClique.CliqueID
 	selfFullnode.IsSynced = resultSelfClique.Synced
