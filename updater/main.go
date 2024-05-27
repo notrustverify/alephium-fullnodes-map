@@ -131,7 +131,7 @@ func updateFullnodeList(fullnodesList []string) {
 
 	// update existing nodes based on their clique id
 	result := db.Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "clique_id"}},
+		Columns:   []clause.Column{{Name: "ip"}, {Name: "port"}},
 		DoUpdates: clause.AssignmentColumns([]string{"client_version", "is_synced", "group_num_per_broker", "port", "broker_id", "updated_at"}),
 	}).Create(&fullnodes)
 
