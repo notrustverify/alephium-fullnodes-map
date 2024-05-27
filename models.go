@@ -8,8 +8,8 @@ type FullnodeDb struct {
 	CliqueId          string
 	BrokerId          uint
 	GroupNumPerBroker uint
-	Ip                string `gorm:"primaryKey;autoIncrement:false""`
-	Port              uint   `gorm:"primaryKey;autoIncrement:false""`
+	Ip                string `gorm:"primaryKey;autoIncrement:false"`
+	Port              uint   `gorm:"primaryKey;autoIncrement:false"`
 	ClientVersion     string
 	IsSynced          bool
 	Hostname          string
