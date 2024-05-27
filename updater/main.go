@@ -140,7 +140,7 @@ func updateFullnodeList(fullnodesList []string) {
 	}
 
 	var emptyIpFullnodes []mapmodels.FullnodeDb
-	resultEmtpy := db.Where("location = ? | ip_updated_at < ? | ip_updated_at is NULL", "", time.Now().Add(-(time.Hour * ONE_WEEK_HOUR))).Find(&emptyIpFullnodes)
+	resultEmtpy := db.Where("location = ? OR ip_updated_at < ? OR ip_updated_at is NULL", "", time.Now().Add(-(time.Hour * ONE_WEEK_HOUR))).Find(&emptyIpFullnodes)
 
 	//`only update existing fullnode
 	if resultEmtpy.RowsAffected > 0 {
