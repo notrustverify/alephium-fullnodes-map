@@ -2,17 +2,14 @@ package mapmodels
 
 import (
 	"time"
-
-	"gorm.io/gorm"
 )
 
 type FullnodeDb struct {
-	gorm.Model
 	CliqueId          string `gorm:"unique"`
 	BrokerId          uint
 	GroupNumPerBroker uint
-	Ip                string
-	Port              uint
+	Ip                string `gorm:"primaryKey"`
+	Port              uint   `gorm:"primaryKey"`
 	ClientVersion     string
 	IsSynced          bool
 	Hostname          string
@@ -24,4 +21,7 @@ type FullnodeDb struct {
 	Postal            string
 	Timezone          string
 	IpUpdatedAt       time.Time
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
+	DeletedAt         time.Time `gorm:"index"`
 }
