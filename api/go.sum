@@ -75,6 +75,8 @@ github.com/modern-go/reflect2 v1.0.2 h1:xBagoLtFs94CBntxluKeaWgTMpvLxC4ur3nMaC9G
 github.com/modern-go/reflect2 v1.0.2/go.mod h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=
 github.com/notrustverify/alephium-fullnodes-map v0.0.0-20240525125656-58f3a2c73e70 h1:03sKvAFmd22eE3xGjgPYcZALDc07Js5XkOGjSvJ/q/Y=
 github.com/notrustverify/alephium-fullnodes-map v0.0.0-20240525125656-58f3a2c73e70/go.mod h1:AtksCGWvpPYYH567RDjkT7s8PIovEZkoprDnI37SU5Y=
+github.com/notrustverify/alephium-fullnodes-map v0.0.0-20240527161715-fd7a5b7b6adc h1:gIJUd3eysi4AOPny9RhdCCEIW261Kit/e9hj0B2i+fI=
+github.com/notrustverify/alephium-fullnodes-map v0.0.0-20240527161715-fd7a5b7b6adc/go.mod h1:AtksCGWvpPYYH567RDjkT7s8PIovEZkoprDnI37SU5Y=
 github.com/pelletier/go-toml/v2 v2.2.2 h1:aYUidT7k73Pcl9nb2gScu7NSrKCSHIDE89b3+6Wq+LM=
 github.com/pelletier/go-toml/v2 v2.2.2/go.mod h1:1t835xjRzz80PqgE6HHgN2JOsmgYu/h4qDAS4n929Rs=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=

@@ -5,7 +5,7 @@ go 1.22.2
 require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/joho/godotenv v1.5.1
-	github.com/notrustverify/alephium-fullnodes-map v0.0.0-20240525125656-58f3a2c73e70
+	github.com/notrustverify/alephium-fullnodes-map v0.0.0-20240527161715-fd7a5b7b6adc
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.0
 	github.com/swaggo/swag v1.16.3
