@@ -115,7 +115,7 @@ func getFullnodes(c *gin.Context) {
 		lastTimeUpdated = 3
 	}
 
-	result := dbHandler.Model(&mapmodels.FullnodeDb{}).Where("updated_at > ? & location != ''", timeNow.Add(time.Hour*time.Duration(-lastTimeUpdated))).Find(&fullnodes)
+	result := dbHandler.Model(&mapmodels.FullnodeDb{}).Where("updated_at > ? AND location != ''", timeNow.Add(time.Hour*time.Duration(-lastTimeUpdated))).Find(&fullnodes)
 
 	if result.RowsAffected > 0 && result.Error == nil {
 		c.JSON(http.StatusOK, fullnodes)
