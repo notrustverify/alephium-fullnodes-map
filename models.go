@@ -5,11 +5,11 @@ import (
 )
 
 type FullnodeDb struct {
-	CliqueId          string `gorm:"unique"`
+	CliqueId          string
 	BrokerId          uint
 	GroupNumPerBroker uint
-	Ip                string `gorm:"primaryKey"`
-	Port              uint   `gorm:"primaryKey"`
+	Ip                string `gorm:"primaryKey;autoIncrement:false""`
+	Port              uint   `gorm:"primaryKey;autoIncrement:false""`
 	ClientVersion     string
 	IsSynced          bool
 	Hostname          string
