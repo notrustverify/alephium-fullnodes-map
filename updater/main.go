@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-co-op/gocron"
@@ -112,6 +113,7 @@ func main() {
 	db.AutoMigrate(&mapmodels.FullnodeDb{}, &NumNodesDb{})
 	log.Printf("Starting, running every %s\n", cronUpdate)
 	log.Printf("Querying %s\n", fullnodesList)
+
 	s := gocron.NewScheduler(time.UTC)
 	s.Every(cronUpdate).Do(updateFullnodeList, fullnodesList)
 	s.StartBlocking()
@@ -120,6 +122,7 @@ func main() {
 
 func updateFullnodeList(fullnodesList []string) {
 	log.Println("Update fullnodes")
+
 	fullnodes, err := getFullnodes(fullnodesList)
 	if err != nil {
 		log.Printf("Error get fullnodes, %s", err)
@@ -225,6 +228,7 @@ func getPublicIp(host string) (string, error) {
 		if ipv4 := ip.To4(); ipv4 != nil {
 			return ipv4.To4().String(), nil
 		}
+
 	}
 
 	return ips[0].String(), err
@@ -234,16 +238,7 @@ func getPublicIp(host string) (string, error) {
 func getJSON[T any](url string) ([]T, error) {
 	var fullnode []T
 
-	var req *http.Request
-
-	apiSplitKey := strings.Split(url, "@")
-	if len(apiSplitKey) > 1 {
-		req, _ = http.NewRequest("GET", apiSplitKey[1], nil)
-		req.Header.Set("X-API-KEY", apiSplitKey[0])
-	} else {
-		req, _ = http.NewRequest("GET", url, nil)
-
-	}
+	req := createHttpRequest(url)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -267,16 +262,7 @@ func getJSON[T any](url string) ([]T, error) {
 func getJSONNotArray[T any](url string) (T, error) {
 	var fullnode T
 
-	var req *http.Request
-
-	apiSplitKey := strings.Split(url, "@")
-	if len(apiSplitKey) > 1 {
-		req, _ = http.NewRequest("GET", apiSplitKey[1], nil)
-		req.Header.Set("X-API-KEY", apiSplitKey[0])
-	} else {
-		req, _ = http.NewRequest("GET", url, nil)
-
-	}
+	req := createHttpRequest(url)
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -293,11 +279,10 @@ func getJSONNotArray[T any](url string) (T, error) {
 	if err != nil {
 		return fullnode, fmt.Errorf("cannot decode JSON: %v", err)
 	}
-
 	return fullnode, nil
 }
 
-func returnUri(uri string) *http.Request {
+func createHttpRequest(uri string) *http.Request {
 	var req *http.Request
 
 	apiSplitKey := strings.Split(uri, "@")
@@ -306,7 +291,6 @@ func returnUri(uri string) *http.Request {
 		req.Header.Set("X-API-KEY", apiSplitKey[0])
 	} else {
 		req, _ = http.NewRequest("GET", uri, nil)
-
 	}
 
 	return req
@@ -314,40 +298,49 @@ func returnUri(uri string) *http.Request {
 
 // query endpoint infos/inter-clique-peer-info
 func getFullnodes(nodesToQuery []string) ([]mapmodels.FullnodeDb, error) {
-
-	var fullnode []Fullnode
+	var fullnodes []Fullnode
 	var checkNodesToQuery []string // only use fullnodes that are reachable
 
 	for _, node := range nodesToQuery {
-		selfNode, err := getSelfInfo(node)
 
+		selfNode, err := getSelfInfo(node)
 		// if issue when querying fullnode dont include it later
 		if err != nil {
 			log.Printf("Error with node %s, err: %s", node, err)
 			continue
 		}
 
-		fullnode = append(fullnode, selfNode)
+		fullnodes = append(fullnodes, selfNode)
 		checkNodesToQuery = append(checkNodesToQuery, node)
 
 	}
 
-	for _, node := range checkNodesToQuery {
+	wg := sync.WaitGroup{}
+	fullnodeListResult := make([][]Fullnode, len(checkNodesToQuery))
 
-		url := fmt.Sprintf("%s/%s", node, API_PEERS_ENDPOINT)
+	for i, node := range checkNodesToQuery {
+		wg.Add(1)
 
-		fullnodeListResult, err := getJSON[Fullnode](url)
-		if err != nil {
-			log.Printf("Error in getting fullnodes peers, %s", err)
-		}
+		go func(id int) {
+			url := fmt.Sprintf("%s/%s", node, API_PEERS_ENDPOINT)
 
-		fullnode = append(fullnode, fullnodeListResult...)
+			defer wg.Done()
+			result, err := getJSON[Fullnode](url)
 
+			if err != nil {
+				log.Printf("Error in getting fullnodes peers, %s", err)
+				return
+			}
+			fullnodeListResult[id] = result
+		}(i)
+		wg.Wait()
+
+		fullnodes = append(fullnodes, fullnodeListResult[i]...)
 	}
-
 	var fullnodeDb []mapmodels.FullnodeDb
 
-	for _, item := range fullnode {
+	for _, item := range fullnodes {
+
 		fullnodeDb = appendIfNotExists(fullnodeDb, mapmodels.FullnodeDb{
 			CliqueId:          item.CliqueId,
 			BrokerId:          item.BrokerId,
@@ -357,6 +350,7 @@ func getFullnodes(nodesToQuery []string) ([]mapmodels.FullnodeDb, error) {
 			IsSynced:          item.IsSynced,
 			ClientVersion:     item.ClientVersion,
 		})
+
 	}
 
 	return fullnodeDb, nil
@@ -373,6 +367,7 @@ func getIpInfo(fullnodes *[]mapmodels.FullnodeDb) ipinfo.BatchCore {
 	var ips []string
 	for _, fn := range *fullnodes {
 		ips = append(ips, fn.Ip)
+
 	}
 
 	// batchResult will contain all the batch lookup data

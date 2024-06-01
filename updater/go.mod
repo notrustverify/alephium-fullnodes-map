@@ -16,7 +16,7 @@ require (
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/mattn/go-sqlite3 v1.14.22 // indirect
-	github.com/notrustverify/alephium-fullnodes-map v0.0.0-20240527161550-ef37652e6c29
+	github.com/notrustverify/alephium-fullnodes-map v0.0.0-20240601080553-6f29082fab88
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/robfig/cron/v3 v3.0.1 // indirect
 	go.uber.org/atomic v1.9.0 // indirect

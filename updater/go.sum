@@ -38,6 +38,8 @@ github.com/notrustverify/alephium-fullnodes-map v0.0.0-20240527161515-3c1f2a90ec
 github.com/notrustverify/alephium-fullnodes-map v0.0.0-20240527161515-3c1f2a90ec9c/go.mod h1:AtksCGWvpPYYH567RDjkT7s8PIovEZkoprDnI37SU5Y=
 github.com/notrustverify/alephium-fullnodes-map v0.0.0-20240527161550-ef37652e6c29 h1:A5daXkYdb0xoBr8sctl0DNSEXJZMSNOPu0sJSuGoP4Q=
 github.com/notrustverify/alephium-fullnodes-map v0.0.0-20240527161550-ef37652e6c29/go.mod h1:AtksCGWvpPYYH567RDjkT7s8PIovEZkoprDnI37SU5Y=
+github.com/notrustverify/alephium-fullnodes-map v0.0.0-20240601080553-6f29082fab88 h1:VA9qM1nVydcdxtUJDNx+WHFCx5i5Lcp46f1aky1LqkU=
+github.com/notrustverify/alephium-fullnodes-map v0.0.0-20240601080553-6f29082fab88/go.mod h1:AtksCGWvpPYYH567RDjkT7s8PIovEZkoprDnI37SU5Y=
 github.com/patrickmn/go-cache v2.1.0+incompatible h1:HRMgzkcYKYpi3C8ajMPV8OFXaaRUnok+kx1WdO15EQc=
 github.com/patrickmn/go-cache v2.1.0+incompatible/go.mod h1:3Qf8kWWT7OJRJbdiICTKqZju1ZixQ/KpMGzzAfe6+WQ=
 github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e/go.mod h1:pJLUxLENpZxwdsKMEsNbx1VGcRFpLqf3715MtcvvzbA=
