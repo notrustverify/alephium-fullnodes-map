@@ -5,7 +5,7 @@ import (
 )
 
 type FullnodeDb struct {
-	CliqueId          string
+	CliqueId          string `gorm:"not null"`
 	BrokerId          uint
 	GroupNumPerBroker uint
 	Ip                string `gorm:"primaryKey;autoIncrement:false"`
