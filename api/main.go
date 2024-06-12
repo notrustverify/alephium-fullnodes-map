@@ -108,7 +108,7 @@ func getFullnodes(c *gin.Context) {
 
 	var fullnodes []FullnodeApi
 	timeNow := time.Now()
-	lastTimeUpdatedParam := c.DefaultQuery("lastUpdate", "3")
+	lastTimeUpdatedParam := c.DefaultQuery("lastUpdate", "2")
 	lastTimeUpdated, err := strconv.Atoi(lastTimeUpdatedParam)
 	if err != nil {
 		log.Printf("Error with parameters, %s", err)
