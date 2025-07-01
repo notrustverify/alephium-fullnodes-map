@@ -104,14 +104,14 @@ func main() {
 // @Success 200 {array} FullnodeApi
 // @Router /fullnodes [get]
 // @Param upperBound query string false "Upper bound in hours, default 1"
-// @Param lowerBound query string false "Lower bound in hours, default 4"
+// @Param lowerBound query string false "Lower bound in hours, default 5"
 func getFullnodes(c *gin.Context) {
 	var fullnodes []FullnodeApi
 	timeNow := time.Now()
 
 	// Get upper and lower bounds from query parameters
 	upperBoundParam := c.DefaultQuery("upperBound", "1")
-	lowerBoundParam := c.DefaultQuery("lowerBound", "4")
+	lowerBoundParam := c.DefaultQuery("lowerBound", "5")
 
 	upperBound, err := strconv.Atoi(upperBoundParam)
 	if err != nil {
@@ -121,15 +121,15 @@ func getFullnodes(c *gin.Context) {
 
 	lowerBound, err := strconv.Atoi(lowerBoundParam)
 	if err != nil {
-		log.Printf("Error parsing lowerBound parameter: %v (using default value 4)", err)
-		lowerBound = 4
+		log.Printf("Error parsing lowerBound parameter: %v (using default value 5)", err)
+		lowerBound = 5
 	}
 
 	// Ensure lower bound is greater than upper bound
 	if upperBound >= lowerBound {
 		log.Printf("Warning: upperBound (%d) must be less than lowerBound (%d), adjusting to defaults", upperBound, lowerBound)
 		upperBound = 1
-		lowerBound = 4
+		lowerBound = 5
 	}
 
 	timeUpperBound := timeNow.Add(-time.Hour * time.Duration(upperBound))
