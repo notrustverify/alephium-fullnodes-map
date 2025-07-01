@@ -88,10 +88,11 @@ const API_SELF_CLIQUE_ENDPOINT = "infos/self-clique"
 const ONE_WEEK_HOUR = 168
 
 func main() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
 
 	err := godotenv.Load(".env")
 	if err != nil {
-		log.Printf("Error load env, %s\n", err)
+		log.Printf("Warning: Failed to load .env file: %v", err)
 	}
 	dbPath := os.Getenv("DB_PATH")
 	IPINFO_TOKEN = os.Getenv("IPINFO_TOKEN")
@@ -99,38 +100,40 @@ func main() {
 	fullnodesList := strings.Split(os.Getenv("FULLNODE_LIST"), ",")
 
 	if len(fullnodesList) <= 0 {
-		log.Fatalf("Fullnodes list to query is empty\n")
-		os.Exit(1)
+		log.Fatalf("Configuration error: FULLNODE_LIST is empty")
 	}
 
 	conn, err := gorm.Open(sqlite.Open(dbPath), &gorm.Config{})
 	if err != nil {
-		panic("failed to connect database\n")
+		log.Fatalf("Database connection error: %v", err)
 	}
 	db = conn
 
 	// Migrate the schema
-	db.AutoMigrate(&mapmodels.FullnodeDb{}, &NumNodesDb{})
-	log.Printf("Starting, running every %s\n", cronUpdate)
-	log.Printf("Querying %s\n", fullnodesList)
+	if err := db.AutoMigrate(&mapmodels.FullnodeDb{}, &NumNodesDb{}); err != nil {
+		log.Fatalf("Database migration failed: %v", err)
+	}
+	log.Printf("Starting updater service with %d nodes to query", len(fullnodesList))
 
 	s := gocron.NewScheduler(time.UTC)
 	s.Every(cronUpdate).Do(updateFullnodeList, fullnodesList)
 	s.StartBlocking()
-
 }
 
 func updateFullnodeList(fullnodesList []string) {
-	log.Println("Update fullnodes")
+	startTime := time.Now()
+	log.Printf("Starting fullnode update at %v", startTime.Format(time.RFC3339))
 
 	fullnodes, err := getFullnodes(fullnodesList)
 	if err != nil {
-		log.Printf("Error get fullnodes, %s", err)
+		log.Printf("Failed to get fullnodes data: %v", err)
 	}
 
 	// update the actual number of nodes find
 	numNodes := NumNodesDb{Count: len(fullnodes)}
-	db.Create(&numNodes)
+	if result := db.Create(&numNodes); result.Error != nil {
+		log.Printf("Failed to update node count in database: %v", result.Error)
+	}
 
 	// update existing nodes based on their clique id
 	result := db.Clauses(clause.OnConflict{
@@ -139,18 +142,27 @@ func updateFullnodeList(fullnodesList []string) {
 	}).Create(&fullnodes)
 
 	if result.Error != nil {
-		log.Fatalf("Error insert fullnodes, %s", result.Error)
+		log.Printf("Failed to update fullnodes in database: %v", result.Error)
+		return
 	}
+	log.Printf("Successfully updated %d fullnode records", result.RowsAffected)
 
 	var emptyIpFullnodes []mapmodels.FullnodeDb
-	resultEmtpy := db.Where("location = ? OR ip_updated_at < ? OR ip_updated_at is NULL", "", time.Now().Add(-(time.Hour * ONE_WEEK_HOUR))).Find(&emptyIpFullnodes)
+	resultEmpty := db.Where("location = ? OR ip_updated_at < ? OR ip_updated_at is NULL", "", time.Now().Add(-(time.Hour * ONE_WEEK_HOUR))).Find(&emptyIpFullnodes)
+
+	if resultEmpty.Error != nil {
+		log.Printf("Failed to query nodes needing location updates: %v", resultEmpty.Error)
+		return
+	}
 
 	//`only update existing fullnode
-	if resultEmtpy.RowsAffected > 0 {
+	if resultEmpty.RowsAffected > 0 {
+		log.Printf("Found %d nodes needing location updates", resultEmpty.RowsAffected)
 		ipInfo := getIpInfo(&emptyIpFullnodes)
 
+		updateCount := 0
 		for k, v := range ipInfo {
-			db.Model(&mapmodels.FullnodeDb{}).Where("ip = ?", k).Updates(mapmodels.FullnodeDb{
+			updateResult := db.Model(&mapmodels.FullnodeDb{}).Where("ip = ?", k).Updates(mapmodels.FullnodeDb{
 				Hostname:    v.Hostname,
 				City:        v.City,
 				Region:      v.Region,
@@ -161,14 +173,20 @@ func updateFullnodeList(fullnodesList []string) {
 				Timezone:    v.Timezone,
 				IpUpdatedAt: time.Now(),
 			})
+
+			if updateResult.Error != nil {
+				log.Printf("Failed to update location for IP %s: %v", k, updateResult.Error)
+			} else {
+				updateCount++
+			}
 		}
+		log.Printf("Successfully updated locations for %d/%d nodes", updateCount, len(ipInfo))
 	}
 
-	log.Printf("Update done")
-
+	duration := time.Since(startTime)
+	log.Printf("Update completed in %v", duration)
 }
 
-// retrieve info from queried node
 func getSelfInfo(basePath string) (Fullnode, error) {
 	selfVersionUrl := fmt.Sprintf("%s/%s", basePath, API_SELF_VERSION_ENDPOINT)
 	selfChainParamsUrl := fmt.Sprintf("%s/%s", basePath, API_SELF_CHAIN_PARAM_ENDPOINT)
@@ -177,23 +195,23 @@ func getSelfInfo(basePath string) (Fullnode, error) {
 	var selfFullnode Fullnode
 	resultVersion, err := getJSONNotArray[SelfVersion](selfVersionUrl)
 	if err != nil {
-		return Fullnode{}, fmt.Errorf("error with self version: %s", err)
+		return Fullnode{}, fmt.Errorf("failed to get version from %s: %v", basePath, err)
 	}
 
 	resultChainParam, err := getJSONNotArray[SelfChainParams](selfChainParamsUrl)
 	if err != nil {
-		return Fullnode{}, fmt.Errorf("error with chain param: %s", err)
+		return Fullnode{}, fmt.Errorf("failed to get chain params from %s: %v", basePath, err)
 	}
 
 	resultSelfClique, err := getJSONNotArray[SelfClique](selfCliqueUrl)
 	if err != nil {
-		return Fullnode{}, fmt.Errorf("error with self clique: %s", err)
+		return Fullnode{}, fmt.Errorf("failed to get clique info from %s: %v", basePath, err)
 	}
 
 	hostname := strings.Split(basePath, "://")[1]
 	publicIp, err := getPublicIp(hostname)
 	if err != nil {
-		return Fullnode{}, fmt.Errorf("cannot get public ip, %s", publicIp)
+		return Fullnode{}, fmt.Errorf("failed to resolve public IP for %s: %v", hostname, err)
 	}
 
 	selfFullnode.ClientVersion = fmt.Sprintf("scala-alephium/%s/Linux", resultVersion.Version)
@@ -296,24 +314,22 @@ func createHttpRequest(uri string) *http.Request {
 	return req
 }
 
-// query endpoint infos/inter-clique-peer-info
 func getFullnodes(nodesToQuery []string) ([]mapmodels.FullnodeDb, error) {
 	var fullnodes []Fullnode
 	var checkNodesToQuery []string // only use fullnodes that are reachable
 
+	log.Printf("Starting to query %d nodes for self info", len(nodesToQuery))
 	for _, node := range nodesToQuery {
-
 		selfNode, err := getSelfInfo(node)
-		// if issue when querying fullnode dont include it later
 		if err != nil {
-			log.Printf("Error with node %s, err: %s", node, err)
+			log.Printf("Failed to get self info from node %s: %v", node, err)
 			continue
 		}
 
 		fullnodes = append(fullnodes, selfNode)
 		checkNodesToQuery = append(checkNodesToQuery, node)
-
 	}
+	log.Printf("Successfully got self info from %d/%d nodes", len(checkNodesToQuery), len(nodesToQuery))
 
 	wg := sync.WaitGroup{}
 	fullnodeListResult := make([][]Fullnode, len(checkNodesToQuery))
@@ -321,26 +337,26 @@ func getFullnodes(nodesToQuery []string) ([]mapmodels.FullnodeDb, error) {
 	for i, node := range checkNodesToQuery {
 		wg.Add(1)
 
-		go func(id int) {
-			url := fmt.Sprintf("%s/%s", node, API_PEERS_ENDPOINT)
+		go func(id int, nodeURL string) {
+			url := fmt.Sprintf("%s/%s", nodeURL, API_PEERS_ENDPOINT)
 
 			defer wg.Done()
 			result, err := getJSON[Fullnode](url)
 
 			if err != nil {
-				log.Printf("Error in getting fullnodes peers, %s", err)
+				log.Printf("Failed to get peers from node %s: %v", nodeURL, err)
 				return
 			}
+			log.Printf("Got %d peers from node %s", len(result), nodeURL)
 			fullnodeListResult[id] = result
-		}(i)
+		}(i, node)
 		wg.Wait()
 
 		fullnodes = append(fullnodes, fullnodeListResult[i]...)
 	}
+
 	var fullnodeDb []mapmodels.FullnodeDb
-
 	for _, item := range fullnodes {
-
 		fullnodeDb = appendIfNotExists(fullnodeDb, mapmodels.FullnodeDb{
 			CliqueId:          item.CliqueId,
 			BrokerId:          item.BrokerId,
@@ -350,14 +366,18 @@ func getFullnodes(nodesToQuery []string) ([]mapmodels.FullnodeDb, error) {
 			IsSynced:          item.IsSynced,
 			ClientVersion:     item.ClientVersion,
 		})
-
 	}
 
+	log.Printf("Found %d unique fullnodes after deduplication", len(fullnodeDb))
 	return fullnodeDb, nil
-
 }
 
 func getIpInfo(fullnodes *[]mapmodels.FullnodeDb) ipinfo.BatchCore {
+	if len(*fullnodes) == 0 {
+		log.Printf("Warning: No fullnodes provided for IP info lookup")
+		return ipinfo.BatchCore{}
+	}
+
 	client := ipinfo.NewClient(
 		nil,
 		ipinfo.NewCache(cache.NewInMemory().WithExpiration(5*time.Minute)),
@@ -367,7 +387,6 @@ func getIpInfo(fullnodes *[]mapmodels.FullnodeDb) ipinfo.BatchCore {
 	var ips []string
 	for _, fn := range *fullnodes {
 		ips = append(ips, fn.Ip)
-
 	}
 
 	// batchResult will contain all the batch lookup data
@@ -379,8 +398,14 @@ func getIpInfo(fullnodes *[]mapmodels.FullnodeDb) ipinfo.BatchCore {
 		},
 	)
 	if err != nil {
-		log.Printf("Error getting ipinfo, %s", err)
+		log.Printf("Failed to get IP info batch: %v", err)
 		return ipinfo.BatchCore{}
+	}
+
+	if len(batchResult) == 0 {
+		log.Printf("Warning: IP info batch request returned no results for %d IPs", len(ips))
+	} else {
+		log.Printf("Successfully retrieved IP info for %d/%d addresses", len(batchResult), len(ips))
 	}
 
 	return batchResult
