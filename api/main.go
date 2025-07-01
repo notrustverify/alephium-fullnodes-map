@@ -105,24 +105,50 @@ func main() {
 // @Router /fullnodes [get]
 // @Param lastUpdate query string false "Last update"
 func getFullnodes(c *gin.Context) {
-
 	var fullnodes []FullnodeApi
 	timeNow := time.Now()
 	lastTimeUpdatedParam := c.DefaultQuery("lastUpdate", "3")
 	lastTimeUpdated, err := strconv.Atoi(lastTimeUpdatedParam)
 	if err != nil {
-		log.Printf("Error with parameters, %s", err)
+		log.Printf("Error parsing lastUpdate parameter: %v (using default value 3)", err)
 		lastTimeUpdated = 3
 	}
 
-	result := dbHandler.Model(&mapmodels.FullnodeDb{}).Where("updated_at > ? AND location != ''", timeNow.Add(time.Hour*time.Duration(-lastTimeUpdated))).Find(&fullnodes)
+	timeThreshold := timeNow.Add(time.Hour * time.Duration(-lastTimeUpdated))
+	log.Printf("Fetching fullnodes updated after %v (last %d hours)", timeThreshold.Format(time.RFC3339), lastTimeUpdated)
 
-	if result.RowsAffected > 0 && result.Error == nil {
-		c.JSON(http.StatusOK, fullnodes)
-	} else {
-		log.Printf("Error getting fullnodes: %s\n", result.Error)
-		c.JSON(http.StatusOK, make([]string, 0))
+	result := dbHandler.Model(&mapmodels.FullnodeDb{}).Where("updated_at > ? AND location != ''", timeThreshold).Find(&fullnodes)
+
+	if result.Error != nil {
+		log.Printf("Error getting fullnodes from database: %v", result.Error)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch fullnodes"})
+		return
 	}
+
+	// Get total count without the location filter for comparison
+	var totalCount int64
+	dbHandler.Model(&mapmodels.FullnodeDb{}).Where("updated_at > ?", timeThreshold).Count(&totalCount)
+
+	log.Printf("Query stats: Found %d fullnodes with location out of %d total fullnodes in the last %d hours",
+		result.RowsAffected, totalCount, lastTimeUpdated)
+
+	if result.RowsAffected == 0 {
+		if totalCount > 0 {
+			log.Printf("Warning: Found %d fullnodes but none have location data set", totalCount)
+		} else {
+			log.Printf("No fullnodes found in the database updated in the last %d hours", lastTimeUpdated)
+		}
+	} else {
+		log.Printf("Fullnode locations found: %d records", len(fullnodes))
+		// Log a sample of the data if available
+		if len(fullnodes) > 0 {
+			sample := fullnodes[0]
+			log.Printf("Sample record - City: %s, Country: %s, Version: %s, Updated: %v",
+				sample.City, sample.Country, sample.ClientVersion, sample.UpdatedAt)
+		}
+	}
+
+	c.JSON(http.StatusOK, fullnodes)
 }
 
 // GetVersion godoc
