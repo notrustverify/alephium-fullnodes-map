@@ -103,21 +103,44 @@ func main() {
 // @Produce json
 // @Success 200 {array} FullnodeApi
 // @Router /fullnodes [get]
-// @Param lastUpdate query string false "Last update"
+// @Param upperBound query string false "Upper bound in hours, default 1"
+// @Param lowerBound query string false "Lower bound in hours, default 4"
 func getFullnodes(c *gin.Context) {
 	var fullnodes []FullnodeApi
 	timeNow := time.Now()
-	lastTimeUpdatedParam := c.DefaultQuery("lastUpdate", "1")
-	lastTimeUpdated, err := strconv.Atoi(lastTimeUpdatedParam)
+
+	// Get upper and lower bounds from query parameters
+	upperBoundParam := c.DefaultQuery("upperBound", "1")
+	lowerBoundParam := c.DefaultQuery("lowerBound", "4")
+
+	upperBound, err := strconv.Atoi(upperBoundParam)
 	if err != nil {
-		log.Printf("Error parsing lastUpdate parameter: %v (using default value 3)", err)
-		lastTimeUpdated = 3
+		log.Printf("Error parsing upperBound parameter: %v (using default value 1)", err)
+		upperBound = 1
 	}
 
-	timeThreshold := timeNow.Add(time.Hour * time.Duration(-lastTimeUpdated))
-	log.Printf("Fetching fullnodes updated after %v (last %d hours)", timeThreshold.Format(time.RFC3339), lastTimeUpdated)
+	lowerBound, err := strconv.Atoi(lowerBoundParam)
+	if err != nil {
+		log.Printf("Error parsing lowerBound parameter: %v (using default value 4)", err)
+		lowerBound = 4
+	}
 
-	result := dbHandler.Model(&mapmodels.FullnodeDb{}).Where("updated_at > ? AND location != ''", timeThreshold).Find(&fullnodes)
+	// Ensure lower bound is greater than upper bound
+	if upperBound >= lowerBound {
+		log.Printf("Warning: upperBound (%d) must be less than lowerBound (%d), adjusting to defaults", upperBound, lowerBound)
+		upperBound = 1
+		lowerBound = 4
+	}
+
+	timeUpperBound := timeNow.Add(-time.Hour * time.Duration(upperBound))
+	timeLowerBound := timeNow.Add(-time.Hour * time.Duration(lowerBound))
+
+	log.Printf("Fetching fullnodes updated between %v and %v (%d to %d hours ago)",
+		timeLowerBound.Format(time.RFC3339), timeUpperBound.Format(time.RFC3339), lowerBound, upperBound)
+
+	result := dbHandler.Model(&mapmodels.FullnodeDb{}).
+		Where("updated_at > ? AND updated_at < ? AND location != ''", timeLowerBound, timeUpperBound).
+		Find(&fullnodes)
 
 	if result.Error != nil {
 		log.Printf("Error getting fullnodes from database: %v", result.Error)
@@ -127,16 +150,18 @@ func getFullnodes(c *gin.Context) {
 
 	// Get total count without the location filter for comparison
 	var totalCount int64
-	dbHandler.Model(&mapmodels.FullnodeDb{}).Where("updated_at > ?", timeThreshold).Count(&totalCount)
+	dbHandler.Model(&mapmodels.FullnodeDb{}).
+		Where("updated_at > ? AND updated_at < ?", timeLowerBound, timeUpperBound).
+		Count(&totalCount)
 
-	log.Printf("Query stats: Found %d fullnodes with location out of %d total fullnodes in the last %d hours",
-		result.RowsAffected, totalCount, lastTimeUpdated)
+	log.Printf("Query stats: Found %d fullnodes with location out of %d total fullnodes in the time window",
+		result.RowsAffected, totalCount)
 
 	if result.RowsAffected == 0 {
 		if totalCount > 0 {
 			log.Printf("Warning: Found %d fullnodes but none have location data set", totalCount)
 		} else {
-			log.Printf("No fullnodes found in the database updated in the last %d hours", lastTimeUpdated)
+			log.Printf("No fullnodes found in the database updated in the specified time window")
 		}
 	} else {
 		log.Printf("Fullnode locations found: %d records", len(fullnodes))
