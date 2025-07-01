@@ -140,12 +140,6 @@ func getFullnodes(c *gin.Context) {
 		}
 	} else {
 		log.Printf("Fullnode locations found: %d records", len(fullnodes))
-		// Log a sample of the data if available
-		if len(fullnodes) > 0 {
-			sample := fullnodes[0]
-			log.Printf("Sample record - City: %s, Country: %s, Version: %s, Updated: %v",
-				sample.City, sample.Country, sample.ClientVersion, sample.UpdatedAt)
-		}
 	}
 
 	c.JSON(http.StatusOK, fullnodes)
