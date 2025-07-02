@@ -103,43 +103,33 @@ func main() {
 // @Produce json
 // @Success 200 {array} FullnodeApi
 // @Router /fullnodes [get]
-// @Param upperBound query string false "Upper bound in hours, default 1"
-// @Param lowerBound query string false "Lower bound in hours, default 5"
+// @Param maxAge query string false "Show nodes updated within the last X hours (default 5)"
 func getFullnodes(c *gin.Context) {
 	var fullnodes []FullnodeApi
 	timeNow := time.Now()
 
-	// Get upper and lower bounds from query parameters
-	upperBoundParam := c.DefaultQuery("upperBound", "1")
-	lowerBoundParam := c.DefaultQuery("lowerBound", "5")
+	// Get max age from query parameter
+	maxAgeParam := c.DefaultQuery("maxAge", "5")
 
-	upperBound, err := strconv.Atoi(upperBoundParam)
+	maxAge, err := strconv.Atoi(maxAgeParam)
 	if err != nil {
-		log.Printf("Error parsing upperBound parameter: %v (using default value 1)", err)
-		upperBound = 1
+		log.Printf("Error parsing maxAge parameter: %v (using default value 5)", err)
+		maxAge = 5
 	}
 
-	lowerBound, err := strconv.Atoi(lowerBoundParam)
-	if err != nil {
-		log.Printf("Error parsing lowerBound parameter: %v (using default value 5)", err)
-		lowerBound = 5
+	// Ensure maxAge is positive
+	if maxAge <= 0 {
+		log.Printf("Warning: maxAge (%d) must be positive, adjusting to default (5)", maxAge)
+		maxAge = 5
 	}
 
-	// Ensure lower bound is greater than upper bound
-	if upperBound >= lowerBound {
-		log.Printf("Warning: upperBound (%d) must be less than lowerBound (%d), adjusting to defaults", upperBound, lowerBound)
-		upperBound = 1
-		lowerBound = 5
-	}
+	timeCutoff := timeNow.Add(-time.Hour * time.Duration(maxAge))
 
-	timeUpperBound := timeNow.Add(-time.Hour * time.Duration(upperBound))
-	timeLowerBound := timeNow.Add(-time.Hour * time.Duration(lowerBound))
-
-	log.Printf("Fetching fullnodes updated between %v and %v (%d to %d hours ago)",
-		timeLowerBound.Format(time.RFC3339), timeUpperBound.Format(time.RFC3339), lowerBound, upperBound)
+	log.Printf("Fetching fullnodes updated within the last %d hours (after %v)",
+		maxAge, timeCutoff.Format(time.RFC3339))
 
 	result := dbHandler.Model(&mapmodels.FullnodeDb{}).
-		Where("updated_at > ? AND updated_at < ? AND location != ''", timeLowerBound, timeUpperBound).
+		Where("updated_at > ? AND location != ''", timeCutoff).
 		Find(&fullnodes)
 
 	if result.Error != nil {
@@ -151,7 +141,7 @@ func getFullnodes(c *gin.Context) {
 	// Get total count without the location filter for comparison
 	var totalCount int64
 	dbHandler.Model(&mapmodels.FullnodeDb{}).
-		Where("updated_at > ? AND updated_at < ?", timeLowerBound, timeUpperBound).
+		Where("updated_at > ?", timeCutoff).
 		Count(&totalCount)
 
 	log.Printf("Query stats: Found %d fullnodes with location out of %d total fullnodes in the time window",
