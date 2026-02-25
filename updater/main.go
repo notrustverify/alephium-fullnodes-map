@@ -16,7 +16,8 @@ import (
 	"time"
 
 	"github.com/go-co-op/gocron"
-	"github.com/ipinfo/go/v2/ipinfo"
+	"encoding/json"
+	"net/http"
 	"github.com/joho/godotenv"
 	mapmodels "github.com/notrustverify/alephium-fullnodes-map"
 	"golang.org/x/crypto/blake2b"
@@ -195,7 +196,7 @@ func updateFullnodeList(fullnodesList []string, networkID int, discoveryDepth in
 				City:        v.City,
 				Region:      v.Region,
 				Country:     v.Country,
-				Location:    v.Location,
+				Location:    v.Loc,
 				Org:         v.Org,
 				Postal:      v.Postal,
 				Timezone:    v.Timezone,
@@ -522,48 +523,77 @@ func fetchClientVersions(nodes map[string]BrokerInfo, networkID int) map[string]
 	return results
 }
 
-func getIpInfo(fullnodes *[]mapmodels.FullnodeDb) ipinfo.BatchCore {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("Recovered from ipinfo batch panic: %v", r)
-		}
-	}()
+type ipInfoResult struct {
+	Hostname string `json:"hostname"`
+	City     string `json:"city"`
+	Region   string `json:"region"`
+	Country  string `json:"country"`
+	Loc      string `json:"loc"`
+	Org      string `json:"org"`
+	Postal   string `json:"postal"`
+	Timezone string `json:"timezone"`
+}
 
+func getIpInfo(fullnodes *[]mapmodels.FullnodeDb) map[string]ipInfoResult {
+	results := make(map[string]ipInfoResult)
 	if len(*fullnodes) == 0 {
-		log.Printf("Warning: No fullnodes provided for IP info lookup")
-		return ipinfo.BatchCore{}
+		return results
 	}
 	if strings.TrimSpace(IPINFO_TOKEN) == "" {
 		log.Printf("IPINFO_TOKEN is empty; skipping location enrichment")
-		return ipinfo.BatchCore{}
+		return results
 	}
 
-	client := ipinfo.NewClient(nil, nil, IPINFO_TOKEN)
+	type lookupResult struct {
+		ip   string
+		info ipInfoResult
+		err  error
+	}
 
-	var ips []string
+	wg := sync.WaitGroup{}
+	out := make(chan lookupResult, len(*fullnodes))
+	sem := make(chan struct{}, defaultTCPWorkers)
+	httpClient := &http.Client{Timeout: 10 * time.Second}
+
 	for _, fn := range *fullnodes {
-		ips = append(ips, fn.Ip)
+		wg.Add(1)
+		go func(ip string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			url := fmt.Sprintf("https://ipinfo.io/%s?token=%s", ip, IPINFO_TOKEN)
+			resp, err := httpClient.Get(url)
+			if err != nil {
+				out <- lookupResult{ip: ip, err: err}
+				return
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				out <- lookupResult{ip: ip, err: fmt.Errorf("status %d", resp.StatusCode)}
+				return
+			}
+			var info ipInfoResult
+			if err := json.NewDecoder(resp.Body).Decode(&info); err != nil {
+				out <- lookupResult{ip: ip, err: err}
+				return
+			}
+			out <- lookupResult{ip: ip, info: info}
+		}(fn.Ip)
+	}
+	wg.Wait()
+	close(out)
+
+	for res := range out {
+		if res.err != nil {
+			log.Printf("IP info lookup failed for %s: %v", res.ip, res.err)
+			continue
+		}
+		results[res.ip] = res.info
 	}
 
-	batchResult, err := client.GetIPStrInfoBatch(ips,
-		ipinfo.BatchReqOpts{
-			BatchSize:       30,
-			TimeoutPerBatch: 0,
-			TimeoutTotal:    5,
-		},
-	)
-	if err != nil {
-		log.Printf("Failed to get IP info batch: %v", err)
-		return ipinfo.BatchCore{}
-	}
-
-	if len(batchResult) == 0 {
-		log.Printf("Warning: IP info batch request returned no results for %d IPs", len(ips))
-	} else {
-		log.Printf("Successfully retrieved IP info for %d/%d addresses", len(batchResult), len(ips))
-	}
-
-	return batchResult
+	log.Printf("Successfully retrieved IP info for %d/%d addresses", len(results), len(*fullnodes))
+	return results
 }
 
 func magicBytes(networkID int) []byte {
