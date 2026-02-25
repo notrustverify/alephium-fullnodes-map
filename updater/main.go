@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net"
 	"os"
 	"strconv"
@@ -106,37 +107,22 @@ func updateFullnodeList(fullnodesList []string, networkID int, discoveryDepth in
 	startTime := time.Now()
 	log.Printf("Starting fullnode update at %v", startTime.Format(time.RFC3339))
 
-	var aliveNodes []mapmodels.FullnodeDb
-	var newNodes []mapmodels.FullnodeDb
-	trackWg := sync.WaitGroup{}
+	// Phase 1: Ping+FindNode on known nodes
+	aliveNodes, livenessNeighbors := checkKnownNodes(networkID)
 
-	// Track 1: Ping known nodes for liveness
-	trackWg.Add(1)
-	go func() {
-		defer trackWg.Done()
-		aliveNodes = checkKnownNodes(networkID)
-	}()
-
-	// Build set of known endpoints for Track 2 filtering
-	var knownEndpoints map[string]struct{}
-	var knownDBNodes []mapmodels.FullnodeDb
-	if err := db.Select("ip", "port").Find(&knownDBNodes).Error; err == nil {
-		knownEndpoints = make(map[string]struct{}, len(knownDBNodes))
-		for _, n := range knownDBNodes {
-			knownEndpoints[fmt.Sprintf("%s:%d", n.Ip, n.Port)] = struct{}{}
-		}
-	} else {
-		knownEndpoints = make(map[string]struct{})
+	// Build known endpoints set from alive nodes
+	knownEndpoints := make(map[string]struct{}, len(aliveNodes))
+	for _, n := range aliveNodes {
+		knownEndpoints[fmt.Sprintf("%s:%d", n.Ip, n.Port)] = struct{}{}
 	}
 
-	// Track 2: Discover new nodes from seeds (depth=1)
-	trackWg.Add(1)
-	go func() {
-		defer trackWg.Done()
-		newNodes = discoverNewNodes(fullnodesList, networkID, discoveryDepth, knownEndpoints)
-	}()
+	// Pick up to 5 random alive nodes as extra seeds for discovery
+	const maxExtraSeeds = 5
+	extraSeeds := pickRandomAliveSeeds(aliveNodes, maxExtraSeeds)
+	allSeeds := append(fullnodesList, extraSeeds...)
 
-	trackWg.Wait()
+	// Phase 2: Discover new nodes from seeds + alive sample, fed with liveness neighbors
+	newNodes := discoverNewNodes(allSeeds, networkID, discoveryDepth, knownEndpoints, livenessNeighbors)
 
 	// Merge: deduplicate by ip:port, new nodes take precedence for fresh data
 	merged := make(map[string]mapmodels.FullnodeDb)
@@ -271,24 +257,42 @@ func parseSeedAddress(seed string) (string, error) {
 	return "", err
 }
 
-func checkKnownNodes(networkID int) []mapmodels.FullnodeDb {
+func pickRandomAliveSeeds(aliveNodes []mapmodels.FullnodeDb, max int) []string {
+	if len(aliveNodes) == 0 {
+		return nil
+	}
+	indices := rand.Perm(len(aliveNodes))
+	count := max
+	if count > len(aliveNodes) {
+		count = len(aliveNodes)
+	}
+	seeds := make([]string, count)
+	for i := 0; i < count; i++ {
+		n := aliveNodes[indices[i]]
+		seeds[i] = fmt.Sprintf("%s:%d", n.Ip, n.Port)
+	}
+	return seeds
+}
+
+func checkKnownNodes(networkID int) ([]mapmodels.FullnodeDb, map[string]BrokerInfo) {
 	var knownNodes []mapmodels.FullnodeDb
 	if err := db.Find(&knownNodes).Error; err != nil {
 		log.Printf("Failed to load known nodes from DB: %v", err)
-		return nil
+		return nil, nil
 	}
 	if len(knownNodes) == 0 {
-		return nil
+		return nil, nil
 	}
-	log.Printf("Pinging %d known nodes for liveness", len(knownNodes))
+	log.Printf("Pinging + FindNode on %d known nodes", len(knownNodes))
 
-	type pingResult struct {
-		node  mapmodels.FullnodeDb
-		alive bool
+	type probeResult struct {
+		node      mapmodels.FullnodeDb
+		alive     bool
+		neighbors []BrokerInfo
 	}
 
 	wg := sync.WaitGroup{}
-	out := make(chan pingResult, len(knownNodes))
+	out := make(chan probeResult, len(knownNodes))
 	sem := make(chan struct{}, defaultTCPWorkers)
 
 	for _, node := range knownNodes {
@@ -300,13 +304,18 @@ func checkKnownNodes(networkID int) []mapmodels.FullnodeDb {
 
 			endpoint := fmt.Sprintf("%s:%d", n.Ip, n.Port)
 			alive := pingNode(endpoint, networkID, defaultPingTimeout)
-			out <- pingResult{node: n, alive: alive}
+			var neighbors []BrokerInfo
+			if alive {
+				neighbors, _ = queryNeighbors(endpoint, networkID, defaultDiscoveryTimeout)
+			}
+			out <- probeResult{node: n, alive: alive, neighbors: neighbors}
 		}(node)
 	}
 	wg.Wait()
 	close(out)
 
 	var aliveNodes []mapmodels.FullnodeDb
+	discoveredPeers := make(map[string]BrokerInfo)
 	for res := range out {
 		if !res.alive {
 			continue
@@ -314,9 +323,19 @@ func checkKnownNodes(networkID int) []mapmodels.FullnodeDb {
 		res.node.IsSynced = true
 		res.node.UpdatedAt = time.Now()
 		aliveNodes = append(aliveNodes, res.node)
+
+		for _, peer := range res.neighbors {
+			if peer.Address == "" || peer.Port <= 0 || peer.Port > 65535 {
+				continue
+			}
+			key := fmt.Sprintf("%s:%d", peer.Address, peer.Port)
+			if _, exists := discoveredPeers[key]; !exists {
+				discoveredPeers[key] = peer
+			}
+		}
 	}
 
-	log.Printf("Liveness: %d/%d nodes alive, refreshing all versions via TCP Hello", len(aliveNodes), len(knownNodes))
+	log.Printf("Liveness: %d/%d alive, found %d peers via FindNode", len(aliveNodes), len(knownNodes), len(discoveredPeers))
 
 	if len(aliveNodes) > 0 {
 		versionNodes := make(map[string]BrokerInfo, len(aliveNodes))
@@ -333,12 +352,21 @@ func checkKnownNodes(networkID int) []mapmodels.FullnodeDb {
 		}
 	}
 
-	return aliveNodes
+	return aliveNodes, discoveredPeers
 }
 
-func discoverNewNodes(seedNodes []string, networkID int, depth int, knownEndpoints map[string]struct{}) []mapmodels.FullnodeDb {
-	log.Printf("Running discovery scan with %d seeds, depth=%d", len(seedNodes), depth)
-	neighbors := discoverNeighbors(seedNodes, networkID, depth)
+func discoverNewNodes(seedNodes []string, networkID int, depth int, knownEndpoints map[string]struct{}, extraPeers map[string]BrokerInfo) []mapmodels.FullnodeDb {
+	neighbors := make(map[string]BrokerInfo)
+
+	for k, v := range extraPeers {
+		neighbors[k] = v
+	}
+
+	log.Printf("Running discovery scan with %d seeds, depth=%d (+ %d peers from liveness)", len(seedNodes), depth, len(extraPeers))
+	discovered := discoverNeighbors(seedNodes, networkID, depth)
+	for k, v := range discovered {
+		neighbors[k] = v
+	}
 	log.Printf("Discovery found %d total peers, filtering against %d known", len(neighbors), len(knownEndpoints))
 
 	newNodes := make(map[string]BrokerInfo)
