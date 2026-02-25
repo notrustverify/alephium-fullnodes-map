@@ -15,9 +15,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-co-op/gocron"
 	"encoding/json"
 	"net/http"
+
+	"github.com/go-co-op/gocron"
 	"github.com/joho/godotenv"
 	mapmodels "github.com/notrustverify/alephium-fullnodes-map"
 	"golang.org/x/crypto/blake2b"
@@ -54,16 +55,16 @@ const (
 )
 
 const (
-	signatureLength         = 64
-	cliqueIDLength          = 33
-	sessionIDLength         = 32
-	discoveryVersion  int64 = 65536
-	codePing                = 0
-	codePong                = 1
-	codeFindNode            = 2
-	codeNeighbors           = 3
-	codeHello               = 0
-	defaultPingTimeout      = 1 * time.Second
+	signatureLength          = 64
+	cliqueIDLength           = 33
+	sessionIDLength          = 32
+	discoveryVersion   int64 = 65536
+	codePing                 = 0
+	codePong                 = 1
+	codeFindNode             = 2
+	codeNeighbors            = 3
+	codeHello                = 0
+	defaultPingTimeout       = 1 * time.Second
 )
 
 func main() {
@@ -311,6 +312,7 @@ func checkKnownNodes(networkID int) []mapmodels.FullnodeDb {
 			continue
 		}
 		res.node.IsSynced = true
+		res.node.UpdatedAt = time.Now()
 		aliveNodes = append(aliveNodes, res.node)
 	}
 
