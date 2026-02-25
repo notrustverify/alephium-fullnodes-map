@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/go-co-op/gocron"
-	"github.com/ipinfo/go/ipinfo/cache"
 	"github.com/ipinfo/go/v2/ipinfo"
 	"github.com/joho/godotenv"
 	mapmodels "github.com/notrustverify/alephium-fullnodes-map"
@@ -539,11 +538,7 @@ func getIpInfo(fullnodes *[]mapmodels.FullnodeDb) ipinfo.BatchCore {
 		return ipinfo.BatchCore{}
 	}
 
-	client := ipinfo.NewClient(
-		nil,
-		ipinfo.NewCache(cache.NewInMemory().WithExpiration(5*time.Minute)),
-		IPINFO_TOKEN,
-	)
+	client := ipinfo.NewClient(nil, nil, IPINFO_TOKEN)
 
 	var ips []string
 	for _, fn := range *fullnodes {
