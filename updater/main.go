@@ -229,6 +229,22 @@ func readIntEnv(key string, fallback int) int {
 	return parsed
 }
 
+func resolveToIP(host string) string {
+	if ip := net.ParseIP(host); ip != nil {
+		return host
+	}
+	ips, err := net.LookupIP(host)
+	if err != nil || len(ips) == 0 {
+		return ""
+	}
+	for _, ip := range ips {
+		if v4 := ip.To4(); v4 != nil {
+			return v4.String()
+		}
+	}
+	return ips[0].String()
+}
+
 func parseSeedAddress(seed string) (string, error) {
 	seed = strings.TrimSpace(seed)
 	if seed == "" {
@@ -420,7 +436,13 @@ func discoverNeighbors(seedNodes []string, networkID int, maxDepth int) map[stri
 				host, portStr, splitErr := net.SplitHostPort(res.endpoint)
 				if splitErr == nil {
 					p, _ := strconv.Atoi(portStr)
-					neighbors[res.endpoint] = BrokerInfo{Address: host, Port: p}
+					ip := resolveToIP(host)
+					if ip != "" {
+						key := fmt.Sprintf("%s:%d", ip, p)
+						if _, exists := neighbors[key]; !exists {
+							neighbors[key] = BrokerInfo{Address: ip, Port: p}
+						}
+					}
 				}
 			}
 
