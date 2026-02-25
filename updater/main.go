@@ -493,6 +493,8 @@ func discoverNeighbors(seedNodes []string, networkID int, maxDepth int) map[stri
 	return neighbors
 }
 
+const findNodeQueries = 4
+
 func queryNeighbors(endpoint string, networkID int, timeout time.Duration) ([]BrokerInfo, error) {
 	conn, err := net.Dial("udp", endpoint)
 	if err != nil {
@@ -500,16 +502,17 @@ func queryNeighbors(endpoint string, networkID int, timeout time.Duration) ([]Br
 	}
 	defer conn.Close()
 
-	target := make([]byte, cliqueIDLength)
-	_, _ = crand.Read(target)
-	target[0] = 0x02 // valid compressed pubkey prefix family
-
-	msg, err := buildFindNodeMessage(networkID, target)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := conn.Write(msg); err != nil {
-		return nil, err
+	for i := 0; i < findNodeQueries; i++ {
+		target := make([]byte, cliqueIDLength)
+		_, _ = crand.Read(target)
+		target[0] = 0x02
+		msg, err := buildFindNodeMessage(networkID, target)
+		if err != nil {
+			return nil, err
+		}
+		if _, err := conn.Write(msg); err != nil {
+			return nil, err
+		}
 	}
 
 	seen := make(map[string]struct{})
