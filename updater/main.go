@@ -225,7 +225,7 @@ func getFullnodes(seedNodes []string, networkID int, discoveryDepth int) ([]mapm
 			GroupNumPerBroker: uint(node.BrokerNum),
 			Ip:                node.Address,
 			Port:              uint(node.Port),
-			IsSynced:          false,
+			IsSynced:          true,
 			ClientVersion:     versions[endpoint],
 		})
 	}

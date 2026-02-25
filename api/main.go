@@ -129,7 +129,7 @@ func getFullnodes(c *gin.Context) {
 		maxAge, timeCutoff.Format(time.RFC3339))
 
 	result := dbHandler.Model(&mapmodels.FullnodeDb{}).
-		Where("updated_at > ? AND location != ''", timeCutoff).
+		Where("updated_at > ? AND location != '' AND client_version != ''", timeCutoff).
 		Find(&fullnodes)
 
 	if result.Error != nil {
@@ -169,7 +169,7 @@ func getFullnodes(c *gin.Context) {
 func getVersions(c *gin.Context) {
 
 	var countVersion []ClientVersionCount
-	result := dbHandler.Model(&mapmodels.FullnodeDb{}).Distinct("ip", "port").Select("client_version, COUNT(*) as count").Group("client_version").Order("count").Scan(&countVersion)
+	result := dbHandler.Model(&mapmodels.FullnodeDb{}).Where("client_version != ''").Distinct("ip", "port").Select("client_version, COUNT(*) as count").Group("client_version").Order("count").Scan(&countVersion)
 
 	if result.RowsAffected > 0 && result.Error == nil {
 		c.JSON(http.StatusOK, countVersion)
