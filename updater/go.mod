@@ -7,9 +7,12 @@ require (
 	github.com/ipinfo/go v1.0.0
 	github.com/ipinfo/go/v2 v2.10.0
 	github.com/joho/godotenv v1.5.1
+	golang.org/x/crypto v0.33.0
 	gorm.io/driver/sqlite v1.5.5
 	gorm.io/gorm v1.25.10
 )
+
+require golang.org/x/sys v0.30.0 // indirect
 
 require (
 	github.com/google/uuid v1.4.0 // indirect
