@@ -109,18 +109,18 @@ func getFullnodes(c *gin.Context) {
 	timeNow := time.Now()
 
 	// Get max age from query parameter
-	maxAgeParam := c.DefaultQuery("maxAge", "5")
+	maxAgeParam := c.DefaultQuery("maxAge", "2")
 
 	maxAge, err := strconv.Atoi(maxAgeParam)
 	if err != nil {
-		log.Printf("Error parsing maxAge parameter: %v (using default value 5)", err)
-		maxAge = 5
+		log.Printf("Error parsing maxAge parameter: %v (using default value 2)", err)
+		maxAge = 2
 	}
 
 	// Ensure maxAge is positive
 	if maxAge <= 0 {
-		log.Printf("Warning: maxAge (%d) must be positive, adjusting to default (5)", maxAge)
-		maxAge = 5
+		log.Printf("Warning: maxAge (%d) must be positive, adjusting to default (2)", maxAge)
+		maxAge = 2
 	}
 
 	timeCutoff := timeNow.Add(-time.Hour * time.Duration(maxAge))
