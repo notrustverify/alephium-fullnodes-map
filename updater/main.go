@@ -110,6 +110,12 @@ func updateFullnodeList(fullnodesList []string, networkID int, discoveryDepth in
 	startTime := time.Now()
 	log.Printf("Starting fullnode update at %v", startTime.Format(time.RFC3339))
 
+	// Load all known nodes from DB for API scanning
+	var allDBNodes []mapmodels.FullnodeDb
+	if err := db.Find(&allDBNodes).Error; err != nil {
+		log.Printf("Failed to load DB nodes for API scan: %v", err)
+	}
+
 	// Phase 1: Ping+FindNode on known nodes
 	aliveNodes, livenessNeighbors := checkKnownNodes(networkID)
 
@@ -124,7 +130,7 @@ func updateFullnodeList(fullnodesList []string, networkID int, discoveryDepth in
 	extraSeeds := pickRandomAliveSeeds(aliveNodes, maxExtraSeeds)
 	allSeeds := append(fullnodesList, extraSeeds...)
 
-	// Phase 2 & 3 run in parallel: UDP discovery + REST API discovery
+	// Phase 2 & 3 run in parallel: UDP discovery + REST API discovery on all DB nodes
 	var newNodes []mapmodels.FullnodeDb
 	var apiNodes []mapmodels.FullnodeDb
 	phase23 := sync.WaitGroup{}
@@ -138,7 +144,7 @@ func updateFullnodeList(fullnodesList []string, networkID int, discoveryDepth in
 	phase23.Add(1)
 	go func() {
 		defer phase23.Done()
-		apiNodes = discoverViaAPI(aliveNodes, knownEndpoints)
+		apiNodes = discoverViaAPI(allDBNodes, knownEndpoints)
 	}()
 
 	phase23.Wait()
