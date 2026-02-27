@@ -188,7 +188,7 @@ func updateFullnodeList(fullnodesList []string, networkID int, discoveryDepth in
 	phase23.Add(1)
 	go func() {
 		defer phase23.Done()
-		apiNodes = discoverViaAPI(allDBNodes, knownEndpoints)
+		apiNodes = discoverViaAPI(allDBNodes)
 	}()
 
 	phase23.Wait()
@@ -689,38 +689,33 @@ func fetchInterCliquePeers(ip string) ([]interCliquePeer, error) {
 	return nil, fmt.Errorf("no open API port found for %s", ip)
 }
 
-func discoverViaAPI(aliveNodes []mapmodels.FullnodeDb, knownEndpoints map[string]struct{}) []mapmodels.FullnodeDb {
-	if len(aliveNodes) == 0 {
-		return nil
-	}
-	log.Printf("Probing %d alive nodes for REST API inter-clique peers", len(aliveNodes))
-
+func probeAPIPeers(ips []string) map[string]interCliquePeer {
 	type apiResult struct {
 		peers []interCliquePeer
 	}
 
 	wg := sync.WaitGroup{}
-	out := make(chan apiResult, len(aliveNodes))
+	out := make(chan apiResult, len(ips))
 	sem := make(chan struct{}, defaultTCPWorkers)
 
-	for _, node := range aliveNodes {
+	for _, ip := range ips {
 		wg.Add(1)
-		go func(ip string) {
+		go func(addr string) {
 			defer wg.Done()
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			peers, err := fetchInterCliquePeers(ip)
+			peers, err := fetchInterCliquePeers(addr)
 			if err != nil {
 				return
 			}
 			out <- apiResult{peers: peers}
-		}(node.Ip)
+		}(ip)
 	}
 	wg.Wait()
 	close(out)
 
-	newPeers := make(map[string]interCliquePeer)
+	result := make(map[string]interCliquePeer)
 	for res := range out {
 		for _, p := range res.peers {
 			if p.Address.Addr == "" || !isValidP2PPort(p.Address.Port) {
@@ -728,24 +723,58 @@ func discoverViaAPI(aliveNodes []mapmodels.FullnodeDb, knownEndpoints map[string
 			}
 			resolved := resolveToIP(p.Address.Addr)
 			key := fmt.Sprintf("%s:%d", resolved, p.Address.Port)
-			if _, known := knownEndpoints[key]; known {
-				continue
-			}
-			if _, exists := newPeers[key]; !exists {
-				p.Address.Addr = resolved
-				newPeers[key] = p
-			}
+			p.Address.Addr = resolved
+			result[key] = p
+		}
+	}
+	return result
+}
+
+func discoverViaAPI(nodes []mapmodels.FullnodeDb) []mapmodels.FullnodeDb {
+	if len(nodes) == 0 {
+		return nil
+	}
+
+	// Depth 0: probe known nodes
+	initialIPs := make([]string, 0, len(nodes))
+	probedIPs := make(map[string]struct{}, len(nodes))
+	for _, n := range nodes {
+		if _, seen := probedIPs[n.Ip]; seen {
+			continue
+		}
+		probedIPs[n.Ip] = struct{}{}
+		initialIPs = append(initialIPs, n.Ip)
+	}
+	log.Printf("API discovery depth 0: probing %d nodes", len(initialIPs))
+	allPeers := probeAPIPeers(initialIPs)
+	log.Printf("API discovery depth 0: found %d peers", len(allPeers))
+
+	// Depth 1: probe newly discovered IPs
+	newIPs := make([]string, 0)
+	for _, p := range allPeers {
+		if _, already := probedIPs[p.Address.Addr]; already {
+			continue
+		}
+		probedIPs[p.Address.Addr] = struct{}{}
+		newIPs = append(newIPs, p.Address.Addr)
+	}
+	if len(newIPs) > 0 {
+		log.Printf("API discovery depth 1: probing %d new IPs", len(newIPs))
+		depth1Peers := probeAPIPeers(newIPs)
+		log.Printf("API discovery depth 1: found %d additional peers", len(depth1Peers))
+		for k, p := range depth1Peers {
+			allPeers[k] = p
 		}
 	}
 
-	if len(newPeers) == 0 {
-		log.Printf("API discovery: no new peers found")
+	if len(allPeers) == 0 {
+		log.Printf("API discovery: no peers found")
 		return nil
 	}
-	log.Printf("API discovery: found %d new peers", len(newPeers))
+	log.Printf("API discovery total: %d unique peers", len(allPeers))
 
-	result := make([]mapmodels.FullnodeDb, 0, len(newPeers))
-	for _, p := range newPeers {
+	result := make([]mapmodels.FullnodeDb, 0, len(allPeers))
+	for _, p := range allPeers {
 		result = append(result, mapmodels.FullnodeDb{
 			CliqueId:          p.CliqueId,
 			BrokerId:          uint(p.BrokerId),
@@ -754,6 +783,7 @@ func discoverViaAPI(aliveNodes []mapmodels.FullnodeDb, knownEndpoints map[string
 			Port:              uint(p.Address.Port),
 			IsSynced:          p.IsSynced,
 			ClientVersion:     p.ClientVersion,
+			UpdatedAt:         time.Now(),
 		})
 	}
 	return result
