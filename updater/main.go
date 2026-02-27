@@ -53,7 +53,10 @@ const (
 	defaultDiscoveryTimeout = 3 * time.Second
 	defaultTCPTimeout       = 5 * time.Second
 	defaultTCPWorkers       = 30
+	apiProbeTimeout         = 3 * time.Second
 )
+
+var apiPorts = []int{12973, 443, 80}
 
 const (
 	signatureLength          = 64
@@ -121,16 +124,36 @@ func updateFullnodeList(fullnodesList []string, networkID int, discoveryDepth in
 	extraSeeds := pickRandomAliveSeeds(aliveNodes, maxExtraSeeds)
 	allSeeds := append(fullnodesList, extraSeeds...)
 
-	// Phase 2: Discover new nodes from seeds + alive sample, fed with liveness neighbors
-	newNodes := discoverNewNodes(allSeeds, networkID, discoveryDepth, knownEndpoints, livenessNeighbors)
+	// Phase 2 & 3 run in parallel: UDP discovery + REST API discovery
+	var newNodes []mapmodels.FullnodeDb
+	var apiNodes []mapmodels.FullnodeDb
+	phase23 := sync.WaitGroup{}
 
-	// Merge: deduplicate by ip:port, new nodes take precedence for fresh data
+	phase23.Add(1)
+	go func() {
+		defer phase23.Done()
+		newNodes = discoverNewNodes(allSeeds, networkID, discoveryDepth, knownEndpoints, livenessNeighbors)
+	}()
+
+	phase23.Add(1)
+	go func() {
+		defer phase23.Done()
+		apiNodes = discoverViaAPI(aliveNodes, knownEndpoints)
+	}()
+
+	phase23.Wait()
+
+	// Merge: deduplicate by ip:port; API nodes have richer data (clientVersion, isSynced)
 	merged := make(map[string]mapmodels.FullnodeDb)
 	for _, n := range aliveNodes {
 		key := fmt.Sprintf("%s:%d", n.Ip, n.Port)
 		merged[key] = n
 	}
 	for _, n := range newNodes {
+		key := fmt.Sprintf("%s:%d", n.Ip, n.Port)
+		merged[key] = n
+	}
+	for _, n := range apiNodes {
 		key := fmt.Sprintf("%s:%d", n.Ip, n.Port)
 		merged[key] = n
 	}
@@ -145,7 +168,7 @@ func updateFullnodeList(fullnodesList []string, networkID int, discoveryDepth in
 		log.Printf("Failed to update node count in database: %v", result.Error)
 	}
 
-	log.Printf("Merge: %d alive + %d new = %d total nodes", len(aliveNodes), len(newNodes), len(fullnodes))
+	log.Printf("Merge: %d alive + %d new(UDP) + %d new(API) = %d total nodes", len(aliveNodes), len(newNodes), len(apiNodes), len(fullnodes))
 
 	if len(fullnodes) == 0 {
 		log.Printf("No peers found; skipping fullnode upsert")
@@ -576,6 +599,113 @@ func fetchClientVersions(nodes map[string]BrokerInfo, networkID int) map[string]
 		results[item.key] = item.version
 	}
 	return results
+}
+
+type interCliquePeer struct {
+	CliqueId          string `json:"cliqueId"`
+	BrokerId          int    `json:"brokerId"`
+	GroupNumPerBroker int    `json:"groupNumPerBroker"`
+	Address           struct {
+		Addr string `json:"addr"`
+		Port int    `json:"port"`
+	} `json:"address"`
+	IsSynced      bool   `json:"isSynced"`
+	ClientVersion string `json:"clientVersion"`
+}
+
+func fetchInterCliquePeers(ip string) ([]interCliquePeer, error) {
+	client := &http.Client{Timeout: apiProbeTimeout}
+	for _, port := range apiPorts {
+		url := fmt.Sprintf("http://%s:%d/infos/inter-clique-peer-info", ip, port)
+		resp, err := client.Get(url)
+		if err != nil {
+			continue
+		}
+		defer resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			continue
+		}
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			continue
+		}
+		var peers []interCliquePeer
+		if err := json.Unmarshal(body, &peers); err != nil {
+			continue
+		}
+		return peers, nil
+	}
+	return nil, fmt.Errorf("no open API port found for %s", ip)
+}
+
+func discoverViaAPI(aliveNodes []mapmodels.FullnodeDb, knownEndpoints map[string]struct{}) []mapmodels.FullnodeDb {
+	if len(aliveNodes) == 0 {
+		return nil
+	}
+	log.Printf("Probing %d alive nodes for REST API inter-clique peers", len(aliveNodes))
+
+	type apiResult struct {
+		peers []interCliquePeer
+	}
+
+	wg := sync.WaitGroup{}
+	out := make(chan apiResult, len(aliveNodes))
+	sem := make(chan struct{}, defaultTCPWorkers)
+
+	for _, node := range aliveNodes {
+		wg.Add(1)
+		go func(ip string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			peers, err := fetchInterCliquePeers(ip)
+			if err != nil {
+				return
+			}
+			out <- apiResult{peers: peers}
+		}(node.Ip)
+	}
+	wg.Wait()
+	close(out)
+
+	newPeers := make(map[string]interCliquePeer)
+	for res := range out {
+		for _, p := range res.peers {
+			if p.Address.Addr == "" || p.Address.Port <= 0 || p.Address.Port > 65535 {
+				continue
+			}
+			resolved := resolveToIP(p.Address.Addr)
+			key := fmt.Sprintf("%s:%d", resolved, p.Address.Port)
+			if _, known := knownEndpoints[key]; known {
+				continue
+			}
+			if _, exists := newPeers[key]; !exists {
+				p.Address.Addr = resolved
+				newPeers[key] = p
+			}
+		}
+	}
+
+	if len(newPeers) == 0 {
+		log.Printf("API discovery: no new peers found")
+		return nil
+	}
+	log.Printf("API discovery: found %d new peers", len(newPeers))
+
+	result := make([]mapmodels.FullnodeDb, 0, len(newPeers))
+	for _, p := range newPeers {
+		result = append(result, mapmodels.FullnodeDb{
+			CliqueId:          p.CliqueId,
+			BrokerId:          uint(p.BrokerId),
+			GroupNumPerBroker: uint(p.GroupNumPerBroker),
+			Ip:                p.Address.Addr,
+			Port:              uint(p.Address.Port),
+			IsSynced:          p.IsSynced,
+			ClientVersion:     p.ClientVersion,
+		})
+	}
+	return result
 }
 
 type ipInfoResult struct {
