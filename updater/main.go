@@ -58,6 +58,20 @@ const (
 
 var apiPorts = []int{12973, 443, 80}
 
+var wellKnownP2PPorts = map[int]struct{}{
+	9973:  {},
+	19140: {},
+}
+
+const maxP2PPort = 10000
+
+func isValidP2PPort(port int) bool {
+	if _, ok := wellKnownP2PPorts[port]; ok {
+		return true
+	}
+	return port > 0 && port <= maxP2PPort
+}
+
 const (
 	signatureLength          = 64
 	cliqueIDLength           = 33
@@ -116,11 +130,41 @@ func updateFullnodeList(fullnodesList []string, networkID int, discoveryDepth in
 		log.Printf("Failed to load DB nodes for API scan: %v", err)
 	}
 
+	// Include seed IPs in the API scan pool
+	seedIPs := make(map[string]struct{})
+	for _, seed := range fullnodesList {
+		host, _, err := net.SplitHostPort(seed)
+		if err != nil {
+			host = seed
+		}
+		ip := resolveToIP(host)
+		if _, exists := seedIPs[ip]; exists {
+			continue
+		}
+		seedIPs[ip] = struct{}{}
+		alreadyInDB := false
+		for _, n := range allDBNodes {
+			if n.Ip == ip {
+				alreadyInDB = true
+				break
+			}
+		}
+		if !alreadyInDB {
+			allDBNodes = append(allDBNodes, mapmodels.FullnodeDb{Ip: ip})
+		}
+	}
+	log.Printf("API scan pool: %d nodes (%d from DB + seeds)", len(allDBNodes), len(allDBNodes)-len(seedIPs))
+
 	// Phase 1: Ping+FindNode on known nodes
 	aliveNodes, livenessNeighbors := checkKnownNodes(networkID)
 
-	// Build known endpoints set from alive nodes
-	knownEndpoints := make(map[string]struct{}, len(aliveNodes))
+	// Build known endpoints set from ALL DB nodes (not just alive)
+	knownEndpoints := make(map[string]struct{}, len(allDBNodes)+len(aliveNodes))
+	for _, n := range allDBNodes {
+		if n.Port > 0 {
+			knownEndpoints[fmt.Sprintf("%s:%d", n.Ip, n.Port)] = struct{}{}
+		}
+	}
 	for _, n := range aliveNodes {
 		knownEndpoints[fmt.Sprintf("%s:%d", n.Ip, n.Port)] = struct{}{}
 	}
@@ -354,7 +398,7 @@ func checkKnownNodes(networkID int) ([]mapmodels.FullnodeDb, map[string]BrokerIn
 		aliveNodes = append(aliveNodes, res.node)
 
 		for _, peer := range res.neighbors {
-			if peer.Address == "" || peer.Port <= 0 || peer.Port > 65535 {
+			if peer.Address == "" || !isValidP2PPort(peer.Port) {
 				continue
 			}
 			key := fmt.Sprintf("%s:%d", peer.Address, peer.Port)
@@ -403,7 +447,7 @@ func discoverNewNodes(seedNodes []string, networkID int, depth int, knownEndpoin
 		if _, known := knownEndpoints[key]; known {
 			continue
 		}
-		if node.Address == "" || node.Port <= 0 || node.Port > 65535 {
+		if node.Address == "" || !isValidP2PPort(node.Port) {
 			continue
 		}
 		newNodes[key] = node
@@ -506,7 +550,7 @@ func discoverNeighbors(seedNodes []string, networkID int, maxDepth int) map[stri
 			}
 
 			for _, peer := range res.peers {
-				if peer.Address == "" || peer.Port <= 0 || peer.Port > 65535 {
+				if peer.Address == "" || !isValidP2PPort(peer.Port) {
 					continue
 				}
 				key := fmt.Sprintf("%s:%d", peer.Address, peer.Port)
@@ -627,18 +671,19 @@ func fetchInterCliquePeers(ip string) ([]interCliquePeer, error) {
 		if err != nil {
 			continue
 		}
-		defer resp.Body.Close()
-		if resp.StatusCode != http.StatusOK {
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
 			continue
 		}
-		body, err := io.ReadAll(resp.Body)
-		if err != nil {
+		if resp.StatusCode != http.StatusOK {
 			continue
 		}
 		var peers []interCliquePeer
 		if err := json.Unmarshal(body, &peers); err != nil {
 			continue
 		}
+		log.Printf("API probe: %s:%d returned %d peers", ip, port, len(peers))
 		return peers, nil
 	}
 	return nil, fmt.Errorf("no open API port found for %s", ip)
@@ -678,7 +723,7 @@ func discoverViaAPI(aliveNodes []mapmodels.FullnodeDb, knownEndpoints map[string
 	newPeers := make(map[string]interCliquePeer)
 	for res := range out {
 		for _, p := range res.peers {
-			if p.Address.Addr == "" || p.Address.Port <= 0 || p.Address.Port > 65535 {
+			if p.Address.Addr == "" || !isValidP2PPort(p.Address.Port) {
 				continue
 			}
 			resolved := resolveToIP(p.Address.Addr)
